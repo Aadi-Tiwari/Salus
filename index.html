@@ -1,0 +1,1375 @@
+<!DOCTYPE html>
+<html lang="en" data-motion="on">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>SALUS, find it before they do</title>
+<meta name="description" content="Salus finds the security holes AI code generators leave in your app, proves each one by demonstrating the actual leak, fixes it, and re-runs the same attack to prove the fix held."/>
+<link rel="psalusnect" href="https://api.fontshare.com"/>
+<link rel="psalusnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&f[]=switzer@400,500,600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%2307090A'/%3E%3Ccircle cx='10.5' cy='10.5' r='6.2' fill='none' stroke='%23D7FF3E' stroke-width='2'/%3E%3Cpath d='M15.3 15.3 L20.4 20.4' stroke='%23D7FF3E' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E"/>
+<style>
+:root{
+  --ink:#07090A;
+  --ink-2:#0C1012;
+  --card:#0E1214;
+  --paper:#E9EEF0;
+  --acid:#D7FF3E;
+  --breach:#FF4A32;
+  --amber:#FFAE2B;
+  --txt:#DFE7EA;
+  --txt-dim:#DFE7EA94;
+  --txt-faint:#DFE7EA57;
+  --line:#DFE7EA1f;
+  --line-2:#DFE7EA3d;
+  --r-lg:32px;
+  --r-md:22px;
+  --r-sm:16px;
+  --font-display:"General Sans","Helvetica Neue",sans-serif;
+  --font-body:"Switzer","Helvetica Neue",sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",ui-monospace,monospace;
+  --bounce:cubic-bezier(.2,.9,.3,1.3);
+  --ease:cubic-bezier(.22,1,.36,1);
+  --ease-out:cubic-bezier(.23,1,.32,1);
+  --ease-in-out:cubic-bezier(.77,0,.175,1);
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
+h1,h2,h3,h4,h5,h6{font-size:inherit;font-weight:inherit;margin:0}
+body{
+  margin:0;background:var(--ink);color:var(--txt);
+  font-family:var(--font-body);font-size:16px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+/* Grain sits inside the background field rather than over the whole document.
+   As a blended top layer it forced the compositor to re-blend every pixel of
+   the viewport on every frame that anything underneath moved. */
+body::after{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+}
+h1,h2,h3{font-family:var(--font-display);font-weight:500;letter-spacing:-.022em;line-height:1.08}
+a{color:inherit;text-decoration:none}
+button{font:inherit;cursor:pointer}
+::selection{background:var(--acid);color:var(--ink)}
+:focus-visible{outline:2px solid var(--acid);outline-offset:3px;border-radius:8px}
+.mono{font-family:var(--font-mono);letter-spacing:.12em;font-size:.7rem}
+.wrap{width:min(1180px,92vw);margin:0 auto}
+.hl{color:var(--acid)}
+.hl-r{color:var(--breach)}
+
+/* ---------- living background field ---------- */
+.field{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;background:var(--ink)}
+.field .grid{
+  position:absolute;inset:-80px;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:72px 72px;opacity:.38;
+  mask-image:radial-gradient(130% 100% at 50% 0%,#000 10%,#0009 55%,transparent 92%);
+  -webkit-mask-image:radial-gradient(130% 100% at 50% 0%,#000 10%,#0009 55%,transparent 92%);
+  animation:gridDrift 26s linear infinite;will-change:transform;
+}
+/* one full cell per cycle, so the loop is seamless */
+@keyframes gridDrift{from{transform:translate3d(0,0,0)}to{transform:translate3d(-72px,-72px,0)}}
+
+/* Painted as radial gradients rather than solid circles behind blur(120px).
+   A 120px blur over a 660px layer is a large convolution, and the old
+   keyframes scaled it, which threw the cached blur away and re-rasterised it
+   every single frame. A gradient needs no filter and animates as a pure
+   composited translate. */
+.aurora{position:absolute;border-radius:50%;will-change:transform}
+.au-1{
+  width:900px;height:900px;top:-32%;left:-10%;
+  background:radial-gradient(circle,#d7ff3e26 0%,#d7ff3e12 38%,transparent 68%);
+  animation:drift1 24s linear infinite;
+}
+.au-2{
+  width:820px;height:820px;top:30%;right:-18%;
+  background:radial-gradient(circle,#ff4a3220 0%,#ff4a320e 40%,transparent 70%);
+  animation:drift2 29s linear infinite;
+}
+.au-3{
+  width:760px;height:760px;top:68%;left:6%;
+  background:radial-gradient(circle,#ffae2b16 0%,#ffae2b0a 42%,transparent 70%);
+  animation:drift3 26s linear infinite;
+}
+/* Eight stops rather than two, so each blob wanders a closed loop instead of
+   sliding to one point and back. Linear timing keeps it continuous: with two
+   stops an ease curve parks the blob at each end, which is what made the old
+   version read as static. Scaling is safe only because these are gradients;
+   scaling the old blur(120px) version re-rasterised it every frame. */
+@keyframes drift1{
+  0%,100%{transform:translate3d(0,0,0) scale(1)}
+  12.5%{transform:translate3d(165px,55px,0) scale(1.056)}
+  25%   {transform:translate3d(300px,154px,0) scale(1.14)}
+  37.5% {transform:translate3d(210px,220px,0) scale(1.098)}
+  50%   {transform:translate3d(30px,198px,0) scale(1)}
+  62.5% {transform:translate3d(-150px,165px,0) scale(.93)}
+  75%   {transform:translate3d(-225px,66px,0) scale(.958)}
+  87.5% {transform:translate3d(-105px,-44px,0) scale(1)}
+}
+@keyframes drift2{
+  0%,100%{transform:translate3d(0,0,0) scale(1)}
+  12.5%{transform:translate3d(-102px,-144px,0) scale(1.072)}
+  25%   {transform:translate3d(-272px,-240px,0) scale(1.12)}
+  37.5% {transform:translate3d(-340px,-120px,0) scale(1.06)}
+  50%   {transform:translate3d(-289px,36px,0) scale(1)}
+  62.5% {transform:translate3d(-136px,120px,0) scale(.946)}
+  75%   {transform:translate3d(51px,84px,0) scale(.97)}
+  87.5% {transform:translate3d(102px,-36px,0) scale(1)}
+}
+@keyframes drift3{
+  0%,100%{transform:translate3d(0,0,0) scale(1)}
+  12.5%{transform:translate3d(-112px,-78px,0) scale(.944)}
+  25%   {transform:translate3d(-42px,-221px,0) scale(1.08)}
+  37.5% {transform:translate3d(140px,-260px,0) scale(1.16)}
+  50%   {transform:translate3d(280px,-143px,0) scale(1.096)}
+  62.5% {transform:translate3d(238px,52px,0) scale(1)}
+  75%   {transform:translate3d(98px,117px,0) scale(.936)}
+  87.5% {transform:translate3d(-56px,39px,0) scale(1)}
+}
+
+/* scanner probing single grid cells */
+.cells{position:absolute;inset:-80px}
+.cells i{
+  position:absolute;width:72px;height:72px;
+  background:linear-gradient(180deg,#d7ff3e12,#d7ff3e00);
+  border-top:1px solid #d7ff3e2b;border-left:1px solid #d7ff3e14;
+  opacity:0;animation:probe 7s var(--ease-in-out) infinite;
+  animation-delay:var(--d);left:calc(var(--x)*72px);top:calc(var(--y)*72px);
+}
+@keyframes probe{0%,74%,100%{opacity:0}9%{opacity:.75}42%{opacity:.35}}
+
+.vignette{
+  position:absolute;inset:0;
+  background:radial-gradient(115% 80% at 50% 40%,transparent 30%,#07090ae8 100%);
+}
+
+/* pointer glow, transform-only so it never repaints the viewport */
+.glow-dot{
+  position:fixed;top:0;left:0;width:640px;height:640px;margin:-320px 0 0 -320px;
+  border-radius:50%;z-index:0;pointer-events:none;will-change:transform;
+  background:radial-gradient(circle,#d7ff3e14 0%,#ff4a3208 42%,transparent 68%);
+  transform:translate3d(50vw,42vh,0);
+}
+
+/* Driven by transform, not top. Animating top relayouts and repaints a
+   full-width fixed element on every frame; a translate is composited. */
+.sweep{
+  position:fixed;top:0;left:0;right:0;height:190px;z-index:1;pointer-events:none;
+  background:linear-gradient(180deg,transparent,#d7ff3e0d,transparent);
+  will-change:transform;animation:sweep 10s linear infinite;
+}
+.sweep.slow{height:340px;background:linear-gradient(180deg,transparent,#ff4a3208,transparent);animation-duration:19s;animation-delay:-6s}
+@keyframes sweep{0%{transform:translate3d(0,-340px,0)}100%{transform:translate3d(0,110vh,0)}}
+
+/* ---------- nav ---------- */
+.nav{
+  position:fixed;top:0;left:0;right:0;z-index:50;
+  display:flex;justify-content:space-between;align-items:center;
+  padding:1.15rem 3vw;transition:opacity .25s;
+}
+/* A gradient scrim instead of a backdrop blur. A fixed backdrop-filter
+   re-samples everything behind it on every scroll frame, which is the most
+   expensive thing a sticky header can do. On a near-black page the scrim is
+   visually indistinguishable. */
+.nav::before{
+  content:"";position:absolute;inset:0;z-index:-1;opacity:0;
+  background:linear-gradient(180deg,#07090af7 40%,#07090ad9 70%,#07090a00);
+  transition:opacity .3s;pointer-events:none;
+}
+.nav.stuck::before{opacity:1}
+.nav-logo{display:flex;align-items:center;gap:.55rem;font-family:var(--font-display);font-size:1.28rem;font-weight:500;letter-spacing:-.02em}
+.logo-ch{display:inline-block;transition:transform .3s cubic-bezier(.2,.9,.3,1.6),color .3s;animation:chIn .6s var(--ease) backwards;animation-delay:calc(var(--i)*45ms)}
+.nav-logo:hover .logo-ch{transform:translateY(-3px);color:var(--acid)}
+.nav-logo:hover .logo-ch:nth-child(2){transition-delay:40ms}
+.nav-logo:hover .logo-ch:nth-child(3){transition-delay:80ms}
+.nav-logo:hover .logo-ch:nth-child(4){transition-delay:120ms}
+.nav-logo:hover .logo-ch:nth-child(5){transition-delay:160ms}
+@keyframes chIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+.logo-mark{flex:none;animation:chIn .6s var(--ease) .3s backwards}
+.nav-links{display:flex;align-items:center;gap:.35rem}
+.nav-links a.nav-txt{position:relative;color:var(--txt-dim);font-size:.9rem;padding:.5rem .8rem;transition:color .25s}
+.nav-links a.nav-txt:hover{color:var(--txt)}
+.nav-links a.nav-txt::after{
+  content:"";position:absolute;left:.8rem;right:.8rem;bottom:.28rem;height:1px;background:var(--acid);
+  transform:scaleX(0);transform-origin:left;transition:transform 280ms var(--ease-out);
+}
+.nav-links a.nav-txt:hover::after{transform:scaleX(1)}
+@media(max-width:840px){.nav-links a.nav-txt{display:none}}
+
+.pill-btn{
+  display:inline-block;border:1px solid var(--line);color:var(--txt);
+  background:#07090aa6;
+  border-radius:999px;padding:.58rem 1.35rem;font-size:.9rem;font-family:var(--font-body);
+  transition:border-color 200ms ease,color 200ms ease,transform 160ms var(--ease-out),box-shadow 200ms ease;
+}
+.pill-btn:active{
+  transform:translateY(0) scale(.97);transition-duration:100ms;
+  border-color:var(--acid);color:var(--acid);
+  box-shadow:0 0 0 3px #d7ff3e40,0 0 28px #d7ff3e8c,inset 0 0 18px #d7ff3e2e;
+}
+.acid-btn{
+  position:relative;overflow:hidden;
+  display:inline-block;background:var(--acid);color:var(--ink);border:none;border-radius:999px;
+  padding:.62rem 1.45rem;font-size:.92rem;font-weight:500;font-family:var(--font-body);
+  transition:transform 180ms var(--bounce),box-shadow 200ms ease;
+}
+/* A sheen that crosses the button on hover. Transform and opacity only, so it
+   never touches layout or paint on the button itself. */
+.acid-btn::after{
+  content:"";position:absolute;top:0;bottom:0;left:-40%;width:40%;
+  background:linear-gradient(100deg,transparent,#ffffff66,transparent);
+  transform:translateX(0);opacity:0;pointer-events:none;
+}
+@media (hover:hover) and (pointer:fine){
+  .acid-btn:hover::after{opacity:1;animation:sheen 620ms var(--ease-out)}
+}
+@keyframes sheen{from{transform:translateX(0)}to{transform:translateX(360%)}}
+.acid-btn:active{transform:translateY(0) scale(.97);transition-duration:100ms;box-shadow:0 0 0 4px #d7ff3e4d,0 0 36px #d7ff3ecc,0 0 90px #ff4a328c}
+.acid-btn:disabled{opacity:.6;cursor:wait;transform:none;box-shadow:none}
+
+/* ---------- hero ---------- */
+.hero{
+  position:relative;z-index:2;display:flex;flex-direction:column;
+  justify-content:center;align-items:center;text-align:center;
+  min-height:92svh;padding:6rem 4vw 4.5rem;
+  background:radial-gradient(66% 50% at var(--mx,50%) var(--my,74%), #d7ff3e1f 0%, #ff4a3214 44%, transparent 70%), transparent;
+}
+/* The hero used to open with a URL field. A single button is a smaller ask and
+   sends the visitor through sign-in, which is where a scan has to start. */
+.hero-cta{
+  margin-top:2.6rem;padding:1rem 2.4rem;font-size:1.05rem;
+  animation:fadeUp .9s var(--ease) .42s backwards;
+}
+.hero h1{color:var(--txt);font-size:clamp(2.7rem,5.8vw,5rem);position:relative;z-index:2}
+.hero h1 .line{display:block;overflow:hidden;padding-bottom:.08em}
+.hero h1 .word{display:inline-block;animation:wordIn .9s var(--ease) backwards}
+.hero h1 .line:nth-child(2) .word{animation-delay:.11s}
+@keyframes wordIn{from{transform:translateY(108%)}to{transform:none}}
+/* Each letter arrives out of focus and resolves, staggered along the word, so
+   the change of word reads as something coming into view rather than a label
+   flipping over. The blur is on a handful of small glyphs for half a second,
+   which is a different animal from a blurred full-viewport layer running
+   forever; the per-letter delay is CSS, so the browser schedules it. */
+/* The word before this one is an inline-block, so its trailing space is
+   trimmed and the two words run together. The margin puts the space back. */
+.rotor{display:inline-block;vertical-align:bottom;white-space:nowrap;margin-left:.24em}
+.rotor i{
+  display:inline-block;font-style:normal;line-height:1;
+  color:var(--breach);opacity:0;filter:blur(20px);
+  animation:letterIn 500ms cubic-bezier(.33,1,.68,1) forwards;
+  animation-delay:calc(var(--i) * 45ms);
+  transition:color 400ms ease;
+}
+@keyframes letterIn{
+  from{opacity:0;filter:blur(20px)}
+  to{opacity:1;filter:blur(0)}
+}
+.hero .sub{max-width:540px;margin:1.9rem auto 0;color:var(--txt-dim);font-size:1.05rem;animation:fadeUp .9s var(--ease) .3s backwards}
+@keyframes fadeUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:none}}
+
+/* ---------- section shell ---------- */
+.section{position:relative;z-index:2;padding:5.5rem 0}
+/* Offscreen sections skip layout, style and paint entirely. The reserved
+   height keeps the scrollbar honest so nothing jumps as they come into view. */
+.section,.fp-sec,.stats,.finale{content-visibility:auto;contain-intrinsic-size:auto 720px}
+.section-eyebrow{display:block;color:var(--acid);margin-bottom:1.4rem}
+.section h2{color:var(--txt);max-width:680px;font-size:clamp(1.9rem,3.8vw,3.2rem)}
+.lede{max-width:600px;color:var(--txt-dim);font-size:1.02rem;margin:1.4rem 0 0}
+/* hidden only once JS confirms it can reveal them again */
+.js [data-reveal]{opacity:0;transform:translateY(24px);transition:opacity .85s var(--ease),transform .85s var(--ease);will-change:transform,opacity}
+[data-reveal].in{opacity:1;transform:none}
+
+/* ---------- tiers ---------- */
+.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:1.2rem;margin-top:3.5rem}
+@media(max-width:900px){.steps{grid-template-columns:1fr}}
+.step{
+  position:relative;overflow:hidden;padding:2.4rem 2rem 2.6rem;
+  /* 40% transparent, so the field moves behind the card */
+  background:#0E121499;border:1px solid var(--line);border-radius:var(--r-lg);
+  transition:transform 240ms var(--ease-out),border-color 240ms ease;
+}
+.step:hover{border-color:#d7ff3e40}
+.step-num{
+  display:inline-block;font-family:var(--font-mono);letter-spacing:.14em;font-size:.72rem;
+  color:var(--txt-dim);border:1px solid var(--line);border-radius:999px;
+  padding:.35rem .85rem;margin-bottom:2rem;transition:color .35s,border-color .35s;
+}
+.step:hover .step-num{color:var(--acid);border-color:#d7ff3e59}
+.step h3{color:var(--txt);font-size:1.25rem;margin-bottom:.8rem}
+.step p{color:var(--txt-dim);font-size:.95rem;margin:0}
+.step-term{
+  display:grid;gap:.35rem;margin-top:1.3rem;padding:.85rem 1rem;
+  background:#07090a8c;border:1px solid #d7ff3e24;border-radius:12px;
+}
+.step-term span{display:block;min-height:1.05em;overflow:hidden;white-space:nowrap;color:var(--acid);font-family:var(--font-mono);font-size:.68rem;letter-spacing:.04em}
+.gate{
+  display:inline-flex;align-items:center;gap:.5rem;margin-top:1.3rem;
+  font-family:var(--font-mono);font-size:.64rem;letter-spacing:.12em;
+  color:var(--txt-dim);border:1px solid var(--line);border-radius:999px;padding:.35rem .8rem;
+}
+.gate i{width:5px;height:5px;border-radius:50%;background:var(--txt-faint)}
+.step.open .gate{border-color:#d7ff3e40;color:var(--acid)}
+.step.open .gate i{background:var(--acid)}
+
+/* ---------- evidence ---------- */
+.evidence{margin-top:3.5rem;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
+.ev-bar{display:flex;align-items:center;gap:.9rem;flex-wrap:wrap;padding:1rem 1.6rem;border-bottom:1px solid var(--line);background:#dfe7ea08}
+.ev-dots{display:flex;gap:.4rem}
+.ev-dots i{width:9px;height:9px;border-radius:50%;background:var(--line-2)}
+.ev-title{font-family:var(--font-mono);font-size:.72rem;color:var(--txt-dim);letter-spacing:.04em}
+.ev-title b{color:var(--txt);font-weight:600}
+.ev-toggle{margin-left:auto;display:flex;gap:.25rem;padding:.25rem;border:1px solid var(--line);border-radius:999px}
+.ev-toggle button{
+  border:0;background:0 0;color:var(--txt-dim);border-radius:999px;padding:.42rem 1rem;
+  font-family:var(--font-mono);font-size:.68rem;letter-spacing:.08em;
+  transition:background .22s,color .22s;
+}
+.ev-toggle button.on{background:var(--paper);color:var(--ink);font-weight:600}
+.ev-grid{display:grid;grid-template-columns:1fr 1.15fr}
+@media(max-width:900px){.ev-grid{grid-template-columns:1fr}}
+.ev-pane{padding:1.8rem 1.7rem 2rem}
+.ev-pane+.ev-pane{border-left:1px solid var(--line)}
+@media(max-width:900px){.ev-pane+.ev-pane{border-left:0;border-top:1px solid var(--line)}}
+.ev-head{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin-bottom:1.2rem}
+.ev-head span:first-child{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.12em;color:var(--txt-dim)}
+.tag{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.12em;padding:.3rem .65rem;border-radius:6px;border:1px solid}
+.tag.red{color:var(--breach);border-color:#ff4a3266;background:#ff4a3217}
+.tag.acid{color:var(--acid);border-color:#d7ff3e66;background:#d7ff3e17}
+.tag.grey{color:var(--txt-dim);border-color:var(--line)}
+pre.code{margin:0;font-family:var(--font-mono);font-size:.775rem;line-height:1.78;color:var(--txt-dim);white-space:pre-wrap;word-break:break-word;transition:opacity 200ms ease,filter 200ms ease}
+pre.code .k{color:#8FB8FF}
+pre.code .s{color:var(--acid)}
+pre.code .r{color:var(--breach)}
+pre.code .c{color:var(--txt-faint)}
+pre.code .w{color:var(--txt)}
+.ev-verdict{display:flex;gap:.7rem;align-items:flex-start;margin-top:1.4rem;padding:.9rem 1rem;border-radius:14px;border:1px solid;font-size:.9rem;transition:opacity 200ms ease,filter 200ms ease}
+.ev-verdict svg{flex:none;margin-top:2px}
+.ev-verdict.bad{border-color:#ff4a3247;background:#ff4a3214;color:#FFC2B7}
+.ev-verdict.good{border-color:#d7ff3e42;background:#d7ff3e12;color:#EAFFAC}
+.ev-verdict.neutral{border-color:var(--line);background:#dfe7ea08;color:var(--txt-dim)}
+.blast-bar{margin-top:1.3rem}
+.blast-bar .bb-top{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.55rem;font-family:var(--font-mono);font-size:.66rem;letter-spacing:.1em;color:var(--txt-dim)}
+.blast-bar .bb-top b{font-size:1.5rem;letter-spacing:-.03em;color:var(--breach);font-weight:600}
+.bb-track{height:9px;border-radius:99px;background:#dfe7ea1a;overflow:hidden}
+.bb-fill{height:100%;width:100%;border-radius:99px;background:linear-gradient(90deg,var(--amber),var(--breach));box-shadow:0 0 18px #ff4a324d;transition:width .6s var(--ease),background .4s,box-shadow .4s}
+.bb-fill.safe{width:0%;background:linear-gradient(90deg,var(--acid),var(--acid));box-shadow:0 0 18px #d7ff3e4d}
+.ev-foot{display:flex;align-items:center;gap:.9rem;flex-wrap:wrap;padding:.9rem 1.6rem;border-top:1px solid var(--line);background:#dfe7ea05;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.06em;color:var(--txt-faint)}
+.ev-foot b{color:var(--txt)}
+.ev-foot .sep{color:var(--line-2)}
+
+/* ---------- fingerprint marquee ---------- */
+.fp-sec{position:relative;z-index:2;padding:4rem 0 4.5rem;overflow:hidden}
+.fp-head{text-align:center;margin-bottom:3.4rem}
+.fp-head h2{max-width:760px;margin:0 auto;color:var(--txt);font-size:clamp(1.9rem,3.8vw,3.2rem)}
+.fp-head .lede{margin:1.4rem auto 0}
+.fp-head .section-eyebrow{margin-bottom:1.4rem}
+.mq-mask{mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent);-webkit-mask-image:linear-gradient(90deg,transparent,#000 8%,#000 92%,transparent)}
+.marquee{display:flex;gap:1.1rem;width:max-content;will-change:transform;animation:march 52s linear infinite;animation-play-state:paused}
+.fp-sec.live .marquee{animation-play-state:running}
+.marquee.rev{animation-direction:reverse;margin-top:1.1rem}
+@keyframes march{to{transform:translateX(-50%)}}
+.fp-card{
+  width:340px;flex:none;padding:1.6rem 1.6rem 1.5rem;
+  background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);
+  transition:transform 240ms var(--ease-out),border-color 240ms ease;
+}
+.fp-card:hover{border-color:#ff4a3247}
+.fp-top{display:flex;align-items:center;justify-content:space-between;gap:.8rem;margin-bottom:1rem}
+.fp-name{font-family:var(--font-display);font-size:1.08rem;font-weight:500;letter-spacing:-.02em;color:var(--txt)}
+.fp-sig{
+  font-family:var(--font-mono);font-size:.68rem;color:var(--txt-faint);letter-spacing:.02em;
+  background:#07090a80;border:1px solid var(--line);border-radius:10px;
+  padding:.6rem .75rem;margin-bottom:1rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+}
+.fp-fail{margin:0;font-size:.92rem;color:var(--txt-dim)}
+.fp-fail b{color:var(--txt);font-weight:500}
+
+/* ---------- stats ---------- */
+.stats{position:relative;z-index:2;padding:1rem 0 4rem}
+.stats-row{display:grid;grid-template-columns:repeat(4,1fr);gap:1rem;text-align:center}
+@media(max-width:820px){.stats-row{grid-template-columns:repeat(2,1fr);gap:2.4rem 1rem}}
+.stats-row b{display:block;font-family:var(--font-display);font-weight:500;line-height:1;letter-spacing:-.03em;color:var(--txt);font-size:clamp(2.6rem,5vw,4.2rem)}
+.stats-row .z b{color:var(--acid)}
+.stats-row b+span{display:block;margin-top:.7rem;color:var(--txt-dim);font-family:var(--font-mono);letter-spacing:.12em;font-size:.66rem;max-width:220px;margin-inline:auto;line-height:1.7}
+
+/* ---------- classifier ---------- */
+.duo{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(2rem,5vw,4.5rem);align-items:start}
+@media(max-width:960px){.duo{grid-template-columns:1fr}}
+.rule-list{display:grid;gap:.7rem;margin-top:2.6rem}
+.rule{
+  display:grid;grid-template-columns:42px 1fr;gap:1rem;align-items:start;
+  padding:1.4rem 1.5rem;background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);
+  transition:border-color 220ms ease,transform 220ms var(--ease-out);
+}
+.rule:hover{border-color:#d7ff3e40}
+.rule .n{display:grid;place-items:center;height:30px;border-radius:9px;background:#d7ff3e14;border:1px solid #d7ff3e40;color:var(--acid);font-family:var(--font-mono);font-size:.72rem}
+.rule h4{font-family:var(--font-display);font-size:1.02rem;font-weight:500;letter-spacing:-.015em;margin-bottom:.35rem;color:var(--txt)}
+.rule p{margin:0;font-size:.92rem;color:var(--txt-dim)}
+.rule-out{
+  margin-top:.7rem;padding:1.2rem 1.4rem;border-radius:var(--r-md);
+  border:1px dashed #d7ff3e59;background:#d7ff3e0f;
+  font-family:var(--font-mono);font-size:.76rem;line-height:2;color:#EAFFAC;
+}
+.side-card{margin-top:2.6rem;background:var(--card);border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
+.sc-head{padding:1rem 1.5rem;border-bottom:1px solid var(--line);background:#dfe7ea08;color:var(--txt-dim);font-family:var(--font-mono);font-size:.66rem;letter-spacing:.16em}
+.sc-row{display:flex;align-items:flex-start;gap:.85rem;padding:1.3rem 1.5rem;border-bottom:1px solid var(--line)}
+.sc-row:last-child{border-bottom:0}
+.sc-row .ic{flex:none;width:20px;height:20px;margin-top:2px}
+.sc-row p{margin:0;font-size:.92rem;color:var(--txt-dim)}
+.sc-row p b{display:block;margin-bottom:.15rem;color:var(--txt);font-weight:500}
+
+/* ---------- faq ---------- */
+.faq-duo{display:grid;grid-template-columns:1.05fr .95fr;gap:clamp(2rem,5vw,4.5rem);align-items:start}
+@media(max-width:960px){.faq-duo{grid-template-columns:1fr}}
+.faq{display:grid;gap:.8rem;margin-top:3rem}
+.faq details{background:var(--card);border:1px solid var(--line);border-radius:var(--r-md);padding:0 1.8rem;transition:border-color .3s}
+.faq details[open]{border-color:#d7ff3e40}
+.faq summary{
+  display:flex;justify-content:space-between;align-items:center;gap:1rem;cursor:pointer;
+  font-family:var(--font-display);color:var(--txt);font-size:1.02rem;padding:1.4rem 0;list-style:none;
+}
+.faq summary::-webkit-details-marker{display:none}
+.faq summary::after{content:"+";color:var(--acid);flex:none;font-size:1.3rem;transition:transform .3s}
+.faq details[open] summary::after{transform:rotate(45deg)}
+.faq details p{margin:0 0 1.5rem;max-width:620px;color:var(--txt-dim);font-size:.93rem}
+.legal-card{
+  margin-top:3rem;padding:2rem 1.9rem;border-radius:var(--r-lg);
+  border:1px solid #d7ff3e2e;background:linear-gradient(180deg,#d7ff3e0a,var(--card));
+}
+.legal-card h3{font-size:1.15rem;color:var(--txt);margin-bottom:.9rem}
+.legal-card p{margin:0 0 1.1rem;color:var(--txt-dim);font-size:.92rem}
+.legal-card ul{margin:0;padding:0;list-style:none;display:grid;gap:.6rem}
+.legal-card li{display:flex;gap:.6rem;font-family:var(--font-mono);font-size:.7rem;letter-spacing:.06em;color:var(--txt-dim);align-items:flex-start}
+.legal-card li span{color:var(--acid);flex:none}
+
+/* ---------- finale ---------- */
+.finale{position:relative;z-index:2;display:flex;flex-direction:column;align-items:center;text-align:center;padding:5rem 4vw 5.5rem}
+.finale h2{font-size:clamp(2.2rem,6vw,4.4rem);max-width:820px;color:var(--txt)}
+.finale p{color:var(--txt-dim);max-width:480px;margin:1.6rem 0 0;font-size:1.02rem}
+
+/* ---------- footer ---------- */
+.footer{position:relative;z-index:50;padding:3rem 0 2.2rem;border-top:1px solid var(--line)}
+.footer-word{
+  display:block;text-align:center;font-family:var(--font-display);font-weight:500;line-height:1;
+  letter-spacing:-.03em;color:var(--acid);opacity:.9;user-select:none;
+  font-size:clamp(2.6rem,8vw,7rem);
+}
+.footer-disclaimer{max-width:660px;margin:2.2rem auto 0;text-align:center;color:var(--txt-dim);font-size:.85rem;line-height:1.65}
+.footer-meta{display:flex;flex-wrap:wrap;justify-content:space-between;gap:1rem;margin-top:3rem;color:var(--txt-faint);font-size:.82rem}
+.footer-meta a{color:var(--txt-dim);text-decoration:underline;text-underline-offset:3px}
+.footer-meta a:hover{color:var(--acid)}
+
+/* ---------- scroll progress ---------- */
+.progress{
+  position:fixed;top:0;left:0;right:0;height:2px;z-index:70;
+  background:linear-gradient(90deg,var(--acid),var(--amber));
+  transform:scaleX(0);transform-origin:0 50%;
+  box-shadow:0 0 12px #d7ff3e6b;pointer-events:none;
+}
+
+/* ---------- cursor spotlight on cards ---------- */
+.step,.fp-card,.evidence,.side-card,.legal-card{position:relative;isolation:isolate}
+.step::before,.fp-card::before,.evidence::before,.side-card::before,.legal-card::before{
+  content:"";position:absolute;inset:0;z-index:-1;border-radius:inherit;opacity:0;
+  background:radial-gradient(340px circle at var(--px,50%) var(--py,50%),#d7ff3e14,transparent 68%);
+  transition:opacity 240ms ease;
+}
+.fp-card::before{background:radial-gradient(280px circle at var(--px,50%) var(--py,50%),#ff4a3214,transparent 68%)}
+
+/* ---------- heading line reveal ---------- */
+/* padding keeps descenders inside the clip box, so the revealed state needs no negative inset */
+.js [data-reveal="head"]{opacity:1;transform:none;padding-bottom:.16em;clip-path:inset(0 0 100% 0);transition:clip-path 820ms var(--ease-out)}
+[data-reveal="head"].in{clip-path:inset(0 0 0 0)}
+
+/* ---------- stagger inside grids ---------- */
+.steps>[data-reveal].in,.rule-list>[data-reveal].in{transition-duration:700ms}
+.steps>[data-reveal]:nth-child(2),.rule-list>[data-reveal]:nth-child(2){transition-delay:70ms}
+.steps>[data-reveal]:nth-child(3),.rule-list>[data-reveal]:nth-child(3){transition-delay:140ms}
+
+/* ---------- animated details ---------- */
+.faq details .ans{display:grid;grid-template-rows:0fr;transition:grid-template-rows 260ms var(--ease-out)}
+.faq details[open] .ans{grid-template-rows:1fr}
+.faq details .ans>div{overflow:hidden}
+
+/* ---------- verdict flash on fix ---------- */
+.ev-pane{position:relative;overflow:hidden}
+.ev-pane .flash{
+  position:absolute;inset:0;pointer-events:none;opacity:0;
+  background:linear-gradient(105deg,transparent 35%,#d7ff3e2e 50%,transparent 65%);
+  transform:translateX(-60%);
+}
+.ev-pane .flash.go{animation:flash 620ms var(--ease-out)}
+@keyframes flash{0%{opacity:1;transform:translateX(-60%)}100%{opacity:0;transform:translateX(60%)}}
+
+@media (hover:hover) and (pointer:fine){
+  .pill-btn:hover{border-color:var(--line-2);transform:translateY(-1px)}
+  .acid-btn:hover{transform:translateY(-2px);box-shadow:0 8px 32px #d7ff3e40}
+  .step:hover{transform:translateY(-6px)}
+  .fp-card:hover{transform:translateY(-5px)}
+  .rule:hover{transform:translateX(5px)}
+  .step:hover::before,.fp-card:hover::before,
+  .evidence:hover::before,.side-card:hover::before,.legal-card:hover::before{opacity:1}
+  .faq summary:hover{color:var(--acid)}
+}
+
+/* Windows "Animation effects" being off makes the browser report reduced
+   motion, which stopped this page dead even for people who never asked for
+   that. data-motion="on" is an explicit opt back in and wins over the query;
+   without the attribute the accessible default still stands. */
+@media (prefers-reduced-motion: reduce){
+  html:not([data-motion="on"]) *,html:not([data-motion="on"]) *::before,html:not([data-motion="on"]) *::after{animation-duration:.001ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important}
+  html:not([data-motion="on"]) *,html:not([data-motion="on"]) *::before,html:not([data-motion="on"]) *::after{transition-property:opacity,color,background-color,border-color!important;transition-duration:200ms!important}
+  html:not([data-motion="on"]) [data-reveal]{opacity:1;transform:none}
+  html:not([data-motion="on"]) [data-reveal="head"]{clip-path:none}
+  html:not([data-motion="on"]) .sweep,html:not([data-motion="on"]) .progress,html:not([data-motion="on"]) .cells,html:not([data-motion="on"]) .glow-dot{display:none}
+  html:not([data-motion="on"]) .field .grid{animation:none}
+  html:not([data-motion="on"]) .aurora{animation:none}
+  html:not([data-motion="on"]) .step:hover,html:not([data-motion="on"]) .fp-card:hover,html:not([data-motion="on"]) .rule:hover{transform:none}
+}
+</style>
+</head>
+<body>
+
+<script>document.documentElement.classList.add("js")</script>
+<div class="progress" aria-hidden="true"></div>
+<div class="field" aria-hidden="true">
+  <div class="grid"></div>
+  <div class="cells" id="cells"></div>
+  <span class="aurora au-1"></span><span class="aurora au-2"></span><span class="aurora au-3"></span>
+  <div class="vignette"></div>
+</div>
+<div class="glow-dot" id="glow" aria-hidden="true"></div>
+<div class="sweep" aria-hidden="true"></div>
+<div class="sweep slow" aria-hidden="true"></div>
+
+<nav class="nav">
+  <a class="nav-logo" href="#" aria-label="Salus, home">
+    <span class="logo-ch" style="--i:0">S</span><span class="logo-ch" style="--i:1">A</span><span class="logo-ch" style="--i:2">L</span><span class="logo-ch" style="--i:3">U</span><span class="logo-ch" style="--i:4">S</span>
+    <svg class="logo-mark" width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="10.5" cy="10.5" r="6.4" fill="none" stroke="var(--acid)" stroke-width="1.9"/>
+      <path d="M15.3 15.3 L20.4 20.4" stroke="var(--acid)" stroke-width="2.3" stroke-linecap="round"/>
+      <path d="M7.7 10.6 L9.8 12.7 L13.5 8.6" fill="none" stroke="var(--acid)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </a>
+  <div class="nav-links">
+    <a class="nav-txt" href="#how">How it works</a>
+    <a class="nav-txt" href="#proof">The proof</a>
+    <a class="nav-txt" href="#accuracy">Accuracy</a>
+    <a class="pill-btn" href="/signin.html">Log in</a>
+  </div>
+</nav>
+
+<section class="hero" id="top">
+  <h1>
+    <span class="line"><span class="word">Your app is </span><span class="word rotor" id="rotor" role="text" aria-label="leaking, exposed, unlocked"></span></span>
+    <span class="line"><span class="word">You cannot see it.</span></span>
+  </h1>
+  <p class="sub">AI code generators get your app running. Nothing in them checks whether it is safe. Salus finds the hole, pulls the data out to prove it, patches the code, then re-runs the same attack to show the patch held.</p>
+  <a class="acid-btn hero-cta" href="/signin.html?next=%2Fscanner.html">Scan now</a>
+</section>
+
+<section class="section" id="how">
+  <div class="wrap">
+    <span class="mono section-eyebrow" data-reveal>Three tiers</span>
+    <h2 data-reveal="head">Scan. Prove. Fix.</h2>
+    <p class="lede" data-reveal>You unlock each tier by clearing the one before it. Salus touches nothing on your app until you prove the app is yours.</p>
+    <div class="steps">
+      <div class="step open" data-reveal>
+        <span class="step-num">Tier 01</span>
+        <h3>The instant passive scan</h3>
+        <p>Paste a URL. Salus reads the JavaScript bundle, the response headers and your app&rsquo;s own public replies, looking for leaked keys, shipped source maps, missing security headers and dangerous backend defaults. Reading public bytes needs no authorization, so there is nothing to ask you for.</p>
+        <span class="gate"><i></i> Open to anyone &middot; 10s</span>
+      </div>
+      <div class="step" data-reveal>
+        <span class="step-num">Tier 02</span>
+        <h3>The authorized deep test</h3>
+        <p>Prove you own the domain, then hand over two test accounts. Salus signs in as both, crawls as account A to map the objects it references, then replays those exact requests as account B. When B receives A&rsquo;s private record instead of an error, you are looking at a broken access control that Salus demonstrated rather than inferred.</p>
+        <div class="step-term" aria-hidden="true"><span></span><span></span><span></span></div>
+      </div>
+      <div class="step" data-reveal>
+        <span class="step-num">Tier 03</span>
+        <h3>The fix, and the re-test</h3>
+        <p>An agent patches the missing check. Two tests then run instead of one: the original attack has to fail, and account A has to keep its own access. Salus marks the fix done only when both pass. If the agent stalls, Salus closes the tier and your proven Tier 2 finding still stands.</p>
+        <span class="gate"><i></i> Gated &middot; opt in per finding</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="proof" style="padding-top:0">
+  <div class="wrap">
+    <span class="mono section-eyebrow" data-reveal>The proof</span>
+    <h2 data-reveal="head">Watch account B read<br/>account A&rsquo;s private record.</h2>
+    <p class="lede" data-reveal>A captured Tier 2 finding. Flip the panel to see the identical request replayed after the patch.</p>
+
+    <div class="evidence" data-reveal>
+      <div class="ev-bar">
+        <span class="ev-dots" aria-hidden="true"><i></i><i></i><i></i></span>
+        <span class="ev-title">Salus &rsaquo; finding <b>IDOR-1042</b> &rsaquo; orders endpoint</span>
+        <div class="ev-toggle" role="tablist" aria-label="Before or after the fix">
+          <button role="tab" class="on" aria-selected="true" data-state="before">Before fix</button>
+          <button role="tab" aria-selected="false" data-state="after">After fix</button>
+        </div>
+      </div>
+
+      <div class="ev-grid">
+        <div class="ev-pane">
+          <div class="ev-head"><span>Request, replayed as account B</span><span class="tag grey">Byte identical</span></div>
+<pre class="code"><span class="k">GET</span> <span class="w">/api/orders/1042</span> HTTP/1.1
+<span class="k">Host</span>: your-app.lovable.app
+<span class="k">Authorization</span>: Bearer <span class="c">eyJhbGciOi…&lt;account B&gt;</span>
+<span class="k">Cookie</span>: sb-access-token=<span class="c">…&lt;account B&gt;</span>
+
+<span class="c"># order 1042 belongs to account A.
+# account B never saw this id anywhere in
+# its own session. salus reached it by
+# incrementing the identifier in the url.</span></pre>
+          <div class="ev-verdict neutral">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 8v5M12 16h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span>The attack does not change between the two states. Only your application does.</span>
+          </div>
+        </div>
+
+        <div class="ev-pane">
+          <span class="flash" aria-hidden="true"></span>
+          <div class="ev-head"><span id="res-label">Response, before the patch</span><span class="tag red" id="res-tag">Leaked</span></div>
+          <pre class="code" id="res-code"><span class="r">HTTP/1.1 200 OK</span>
+<span class="k">content-type</span>: application/json
+
+{
+  <span class="k">"id"</span>: <span class="s">1042</span>,
+  <span class="k">"customer_email"</span>: <span class="r">"m.alvarez@gmail.com"</span>,
+  <span class="k">"shipping_address"</span>: <span class="r">"418 Chestnut St, Apt 6"</span>,
+  <span class="k">"card_last4"</span>: <span class="r">"4417"</span>,
+  <span class="k">"total_cents"</span>: <span class="s">18400</span>,
+  <span class="k">"owner_id"</span>: <span class="r">"usr_A"</span>
+}</pre>
+          <div class="blast-bar">
+            <div class="bb-top"><span id="bb-label">Blast radius, order rows readable</span><b id="bb-num">4,312</b></div>
+            <div class="bb-track"><i class="bb-fill" id="bb-fill" style="display:block"></i></div>
+          </div>
+          <div class="ev-verdict bad" id="res-note">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none"><path d="M12 3l9 16H3l9-16z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 9v4M12 16h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+            <span><b>Confirmed leak.</b> Your server handed three personal-information fields to a session with no claim on them, and the same trick walks the rest of the table.</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="ev-foot">
+        <span>Fingerprint: <b>Lovable + Supabase</b></span><span class="sep">/</span>
+        <span>Playbook: <b>RLS-disabled, IDOR-sweep</b></span><span class="sep">/</span>
+        <span id="foot-3">Classifier: <b style="color:var(--breach)">3 of 3 conditions met</b></span><span class="sep">/</span>
+        <span id="foot-4">Regression guard: <b style="color:var(--txt-faint)">Pending</b></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="fp-sec">
+  <div class="wrap fp-head">
+    <span class="mono section-eyebrow" data-reveal>Generator fingerprinting</span>
+    <h2 data-reveal="head">Each builder signs<br/>its own mistakes.</h2>
+    <p class="lede" data-reveal>Bundle structure, folder layout, meta tags and default config give the generator away. Salus works out which tool built your app, then runs that tool&rsquo;s known-failure playbook instead of a generic checklist.</p>
+  </div>
+  <div class="mq-mask">
+    <div class="marquee" id="mq1"></div>
+    <div class="marquee rev" id="mq2"></div>
+  </div>
+</section>
+
+<section class="stats">
+  <div class="wrap stats-row">
+    <div data-reveal><b data-count="6">0</b><span>Generator playbooks, each with its own failures</span></div>
+    <div data-reveal><b data-count="10" data-suffix="s">0</b><span>To a graded passive scan, no account needed</span></div>
+    <div data-reveal><b data-count="2" data-suffix="x">0</b><span>Independent re-tests before a fix counts as done</span></div>
+    <div data-reveal class="z"><b data-count="0">0</b><span>Findings reported without a demonstrated leak</span></div>
+  </div>
+</section>
+
+<section class="section" id="accuracy" style="padding-top:0">
+  <div class="wrap duo">
+    <div>
+      <span class="mono section-eyebrow" data-reveal>The accuracy problem</span>
+      <h2 data-reveal="head">&ldquo;How do you know that is a leak and not sharing?&rdquo;</h2>
+      <p class="lede" data-reveal>Anyone serious asks this first, so the answer is deterministic and written down. No model decides it. Salus calls a cross-account read a leak only when all three conditions hold at once.</p>
+      <div class="rule-list">
+        <div class="rule" data-reveal>
+          <span class="n">01</span>
+          <div><h4>B never saw it legitimately</h4><p>The object never appeared in account B&rsquo;s own authenticated session. A document you shared on purpose fails this test, because sharing already put it in B&rsquo;s session.</p></div>
+        </div>
+        <div class="rule" data-reveal>
+          <span class="n">02</span>
+          <div><h4>Salus reached it by mutating an identifier</h4><p>Changing an id in a URL or a request body was the only way in. If your app handed the object over through a normal link, that is not an attack.</p></div>
+        </div>
+        <div class="rule" data-reveal>
+          <span class="n">03</span>
+          <div><h4>The response is shaped like personal data</h4><p>The body carries fields matching personal-information patterns: emails, addresses, card fragments, phone numbers. A public profile fails here, because public is the point of it.</p></div>
+        </div>
+      </div>
+      <div class="rule-out" data-reveal>if (!seen_by_B &amp;&amp; reached_by_mutation &amp;&amp; pii_shaped)<br/>&nbsp;&nbsp;&rarr; <span style="color:var(--breach)">report as leak</span><br/>else<br/>&nbsp;&nbsp;&rarr; <span style="color:var(--txt-dim)">never shown to you</span></div>
+    </div>
+
+    <div>
+      <span class="mono section-eyebrow" data-reveal>The anti-gaming rule</span>
+      <h2 data-reveal="head" style="font-size:clamp(1.7rem,3vw,2.4rem)">The agent&rsquo;s word is worth nothing.</h2>
+      <p class="lede" data-reveal>Salus throws away the agent&rsquo;s claim and runs two independent re-tests instead.</p>
+      <div class="side-card" data-reveal>
+        <div class="sc-head">Regression guard</div>
+        <div class="sc-row">
+          <svg class="ic" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="var(--acid)" stroke-width="1.6"/><path d="M8 12.4l2.6 2.6L16 9.6" stroke="var(--acid)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <p><b>Test one: the attack must fail.</b> The identical request that returned account A&rsquo;s record a moment ago has to come back 403.</p>
+        </div>
+        <div class="sc-row">
+          <svg class="ic" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="var(--acid)" stroke-width="1.6"/><path d="M8 12.4l2.6 2.6L16 9.6" stroke="var(--acid)" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <p><b>Test two: your app must still work.</b> Account A has to read its own order and get 200 back, with the right data in it.</p>
+        </div>
+        <div class="sc-row">
+          <svg class="ic" viewBox="0 0 24 24" fill="none"><path d="M12 3l7.5 3.6v5c0 4.4-3.1 8.3-7.5 9.4-4.4-1.1-7.5-5-7.5-9.4v-5L12 3z" stroke="var(--txt-dim)" stroke-width="1.6" stroke-linejoin="round"/></svg>
+          <p><b>Both, or it is not done.</b> If one test out of two passes, Salus rolls the patch back and leaves the finding open. You get no partial credit.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<section class="section" id="faq" style="padding-top:2rem">
+  <div class="wrap">
+    <span class="mono section-eyebrow" data-reveal>Fair questions</span>
+    <h2 data-reveal="head">Before you scan.</h2>
+    <div class="faq-duo">
+      <div class="faq" data-reveal>
+        <details open>
+          <summary>Is it legal to run this?</summary>
+          <div class="ans"><div><p>On your own app, yes, and the whole product is built around that. Tier 1 reads only what a browser already downloads when it visits your page, so there is no authorization to exceed. Tiers 2 and 3 make you prove you own the domain by placing a token on it, and they run with test accounts you create. Salus refuses an authorized test against a domain you have not verified. You point it at your own product; it will not scan a stranger&rsquo;s.</p></div></div>
+        </details>
+        <details>
+          <summary>How do you avoid calling normal sharing a leak?</summary>
+          <div class="ans"><div><p>A deterministic rule handles it, not a model. Three conditions have to hold at once: account B&rsquo;s own session never referenced the object, Salus reached the object only by mutating an identifier, and the response body carries personal-information-shaped fields. A document you shared fails the first condition. A public profile fails the third. Salus drops anything that misses a condition before you ever see it.</p></div></div>
+        </details>
+        <details>
+          <summary>Will the fix break my app?</summary>
+          <div class="ans"><div><p>The second re-test exists to catch that. After a patch, Salus runs the attack again and it has to fail, then runs account A&rsquo;s legitimate request and it has to succeed. If either check misses, Salus rolls the patch back and leaves the finding open. Fixes reach you as a pull request against your repository, so nothing lands until you merge it.</p></div></div>
+        </details>
+        <details>
+          <summary>What if I did not use an AI builder?</summary>
+          <div class="ans"><div><p>The scan still runs and the cross-account replay still works, because broken access control belongs to no particular generator. You lose the fingerprint step, which trades a generic checklist for the specific list of things your builder gets wrong.</p></div></div>
+        </details>
+        <details>
+          <summary>What happens to the data you pull out?</summary>
+          <div class="ans"><div><p>Salus redacts personal-information fields at capture and keeps only their shape, so a finding can prove an email address came back without storing the email address. You read the raw capture once, in your own session, and Salus discards it when you close the finding.</p></div></div>
+        </details>
+      </div>
+
+      <div class="legal-card" data-reveal>
+        <h3>Why the ownership gate is the product</h3>
+        <p>Scanning is ethical and legal when the person running it owns what gets scanned. Salus puts you, the owner, at the keyboard by design, and enforces it with a verification gate instead of a checkbox.</p>
+        <ul>
+          <li><span>&rarr;</span> Tier 1 reads public bytes only, so no authorization exists to exceed</li>
+          <li><span>&rarr;</span> Tier 2 needs a token on your DNS or your web root</li>
+          <li><span>&rarr;</span> You create the test accounts; Salus never harvests them</li>
+          <li><span>&rarr;</span> Salus logs each authorized run against the account that authorized it</li>
+          <li><span>&rarr;</span> Salus runs nothing against a domain you have not verified</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="finale">
+  <h2 data-reveal="head">Find it before<br/>somebody else does.</h2>
+  <p data-reveal>Ten seconds, one URL, and a straight answer about whether your users are exposed.</p>
+  <a class="acid-btn hero-cta" href="/signin.html?next=%2Fscanner.html" data-reveal>Scan now</a>
+</section>
+
+<footer class="footer">
+  <div class="wrap">
+    <span class="footer-word" aria-hidden="true">Salus</span>
+    <p class="footer-disclaimer">Salus runs only against applications you own. Tier 1 reads nothing a visitor&rsquo;s browser has not already downloaded. Tiers 2 and 3 require verified domain ownership and test accounts you provide, and Salus logs each authorized run against the account that authorized it. Findings demonstrate how your own application behaves. They are not legal or compliance advice.</p>
+    <div class="footer-meta">
+      <span>&copy; 2026 Salus</span>
+      <span>Authorized testing only. Never point this at an app you do not own.</span>
+      <span><a href="#">Terms</a> &middot; <a href="#">Privacy</a> &middot; <a href="#">Responsible use</a></span>
+    </div>
+  </div>
+</footer>
+
+<script>
+(function(){
+  // The page can opt back into motion, so the script has to read the same
+  // signal the stylesheet does rather than the media query alone.
+  var reduce = matchMedia("(prefers-reduced-motion: reduce)").matches &&
+               document.documentElement.dataset.motion !== "on";
+
+  /* ---- hero glow follows the cursor ---- */
+  var hero = document.querySelector(".hero");
+  if(hero && !reduce){
+    addEventListener("pointermove", function(e){
+      var r = hero.getBoundingClientRect();
+      if(e.clientY > r.bottom) return;
+      hero.style.setProperty("--mx", ((e.clientX - r.left)/r.width*100).toFixed(1)+"%");
+      hero.style.setProperty("--my", ((e.clientY - r.top)/r.height*100).toFixed(1)+"%");
+    }, {passive:true});
+  }
+
+  /* ---- headline word, letters resolving out of focus ----
+     Each letter carries its own colour, sampled along a gradient by its
+     position in the word, and settles to the breach red a moment after the
+     last letter lands. The stagger and the fade are CSS; script only builds
+     the letters and swaps the word. */
+  var rotor = document.getElementById("rotor");
+  if (rotor) {
+    var ROTOR_WORDS = ["leaking.", "exposed.", "unlocked."];
+    var STAGGER = 45, DURATION = 500, HOLD = 200;
+    var RAMP = ["#D7FF3E", "#FFAE2B", "#FF7A3C", "#FF4A32", "#D7FF3E"];
+
+    var hex2rgb = function(h){
+      return [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)];
+    };
+    // Position along the ramp, then a straight lerp between the two stops it
+    // falls between, so a short word still spans the whole gradient.
+    var sample = function(pos){
+      var at = pos * (RAMP.length - 1);
+      var lo = Math.floor(at), hi = Math.min(lo + 1, RAMP.length - 1), t = at - lo;
+      var a = hex2rgb(RAMP[lo]), b = hex2rgb(RAMP[hi]);
+      return "rgb(" + a.map(function(v,i){ return Math.round(v + (b[i]-v)*t); }).join(",") + ")";
+    };
+
+    var settleTimer = null;
+    var paintWord = function(word){
+      clearTimeout(settleTimer);
+      rotor.textContent = "";
+      var letters = word.split("");
+      letters.forEach(function(ch, i){
+        var el = document.createElement("i");
+        el.textContent = ch;
+        el.style.setProperty("--i", i);
+        el.style.color = sample(i / Math.max(letters.length - 1, 1));
+        if (reduce) { el.style.opacity = 1; el.style.filter = "none"; el.style.animation = "none"; }
+        rotor.appendChild(el);
+      });
+      // Once every letter has landed, drop the gradient and let the word sit
+      // in the one colour the rest of the page uses for a breach.
+      settleTimer = setTimeout(function(){
+        [].forEach.call(rotor.children, function(el){ el.style.color = "var(--breach)"; });
+      }, STAGGER * letters.length + DURATION + HOLD);
+    };
+
+    var wordIndex = 0;
+    paintWord(ROTOR_WORDS[0]);
+    if (!reduce) {
+      setInterval(function(){
+        wordIndex = (wordIndex + 1) % ROTOR_WORDS.length;
+        paintWord(ROTOR_WORDS[wordIndex]);
+      }, 2600);
+    }
+  }
+
+  /* ---- nav scrim + scroll progress, one rAF-throttled listener ---- */
+  var nav = document.querySelector(".nav");
+  var bar = document.querySelector(".progress");
+  var ticking = false;
+  function onScroll(){
+    if(ticking) return;
+    ticking = true;
+    requestAnimationFrame(function(){
+      nav.classList.toggle("stuck", scrollY > 40);
+      var max = document.documentElement.scrollHeight - innerHeight;
+      bar.style.transform = "scaleX(" + (max > 0 ? Math.min(scrollY/max,1) : 0) + ")";
+      ticking = false;
+    });
+  }
+  addEventListener("scroll", onScroll, {passive:true});
+  onScroll();
+
+  /* ---- cursor spotlight, written to the card itself so children never restyle ---- */
+  if(!reduce && matchMedia("(hover: hover) and (pointer: fine)").matches){
+    document.querySelectorAll(".step,.fp-card,.evidence,.side-card,.legal-card").forEach(function(card){
+      card.addEventListener("pointermove", function(e){
+        var r = card.getBoundingClientRect();
+        card.style.setProperty("--px", (e.clientX - r.left) + "px");
+        card.style.setProperty("--py", (e.clientY - r.top) + "px");
+      }, {passive:true});
+    });
+  }
+
+  /* ---- marquees only animate while on screen ---- */
+  var fpSec = document.querySelector(".fp-sec");
+  if(fpSec){
+    new IntersectionObserver(function(es){
+      fpSec.classList.toggle("live", es[0].isIntersecting);
+    }, {rootMargin:"120px"}).observe(fpSec);
+  }
+
+  /* ---- scanner probe cells scattered over the grid ---- */
+  var cells = document.getElementById("cells");
+  if(cells && !reduce){
+    var cols = Math.ceil((innerWidth+160)/72), rows = Math.ceil((innerHeight+160)/72), html = "";
+    var taken = {};
+    // Twelve reads the same as twenty-two once they are scattered, and each one
+    // is a separately composited layer that ticks for the life of the page.
+    for(var c=0;c<12;c++){
+      // deterministic scatter, no Math.random so the pattern is stable between loads
+      var x = (c*7+3) % cols, y = (c*5+1) % rows, key = x+"_"+y;
+      if(taken[key]) continue;
+      taken[key] = 1;
+      html += '<i style="--x:'+x+';--y:'+y+';--d:'+(c*0.62).toFixed(2)+'s"></i>';
+    }
+    cells.innerHTML = html;
+  }
+
+  /* ---- pointer glow, eased toward the cursor instead of snapping to it ---- */
+  var glow = document.getElementById("glow");
+  if(glow && !reduce && matchMedia("(hover: hover) and (pointer: fine)").matches){
+    var tx = innerWidth/2, ty = innerHeight*0.42, gx = tx, gy = ty, raf = null;
+    addEventListener("pointermove", function(e){
+      tx = e.clientX; ty = e.clientY;
+      if(!raf) raf = requestAnimationFrame(follow);
+    }, {passive:true});
+    function follow(){
+      gx += (tx-gx)*0.085; gy += (ty-gy)*0.085;
+      glow.style.transform = "translate3d("+gx.toFixed(1)+"px,"+gy.toFixed(1)+"px,0)";
+      raf = (Math.abs(tx-gx) > 0.5 || Math.abs(ty-gy) > 0.5) ? requestAnimationFrame(follow) : null;
+    }
+  }
+
+  /* ---- generator fingerprint cards ---- */
+  var GENS = [
+    {n:"Lovable",      s:"supabase-js + /_app/immutable/",     f:"Ships the <b>anon key inside the bundle</b> and leaves row-level security switched off on new tables."},
+    {n:"v0 by Vercel", s:"app/ route handlers, no middleware", f:"Route handlers read the session, then <b>skip the owner_id comparison</b> against the caller."},
+    {n:"Bolt.new",     s:"vite + stackblitz build signature",  f:"Ships <b>source maps to production</b>, handing your original server code to anyone who looks."},
+    {n:"Replit Agent", s:".replit, replit.nix, port 3000",     f:"Leaves <b>debug routes mounted</b> and echoes secrets into the client bundle."},
+    {n:"Cursor",       s:"mixed hand and generated diff runs",  f:"Adds auth to one endpoint and <b>skips the sibling</b> written in a later pass."},
+    {n:"Base44",       s:"platform-hosted entity endpoints",   f:"<b>Entity permissions default to public</b> until you narrow them by hand."}
+  ];
+  function card(g){
+    return '<article class="fp-card"><div class="fp-top"><span class="fp-name">'+g.n+'</span>'+
+           '<span class="tag red">Known failure</span></div>'+
+           '<div class="fp-sig">'+g.s+'</div><p class="fp-fail">'+g.f+'</p></article>';
+  }
+  var m1=document.getElementById("mq1"), m2=document.getElementById("mq2");
+  var a=GENS.map(card).join(""), b=GENS.slice().reverse().map(card).join("");
+  if(m1) m1.innerHTML = a+a;
+  if(m2) m2.innerHTML = b+b;
+
+  /* ---- scroll reveal ---- */
+  var reveals = document.querySelectorAll("[data-reveal]");
+  var io = new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); } });
+  }, {rootMargin:"0px 0px -8% 0px", threshold:.08});
+  reveals.forEach(function(el,i){
+    el.style.transitionDelay = (Math.min(i%5,4)*60)+"ms";
+    io.observe(el);
+  });
+  // Safety net: nothing on this page may stay invisible because an observer
+  // misfired, was throttled in a background tab, or never ran at all.
+  function rescue(){
+    reveals.forEach(function(el){
+      if(el.classList.contains("in")) return;
+      var r = el.getBoundingClientRect();
+      if(r.top < innerHeight && r.bottom > 0){ el.style.transitionDelay = "0ms"; el.classList.add("in"); }
+    });
+  }
+  // Throttled to one pass per frame. Unthrottled, this read the geometry of
+  // every revealable element on every scroll event, which is a forced layout
+  // in the middle of the scroll.
+  var rescuePending = false;
+  function rescueSoon(){
+    if(rescuePending) return;
+    rescuePending = true;
+    requestAnimationFrame(function(){ rescuePending = false; rescue(); });
+  }
+  addEventListener("scroll", rescueSoon, {passive:true});
+  addEventListener("resize", rescueSoon, {passive:true});
+  setTimeout(rescue, 1200);
+  setTimeout(function(){ reveals.forEach(function(el){ el.classList.add("in"); }); }, 6000);
+
+  /* ---- count up ---- */
+  var cio = new IntersectionObserver(function(es){
+    es.forEach(function(e){
+      if(!e.isIntersecting) return;
+      var el=e.target, t=parseInt(el.dataset.count,10), suf=el.dataset.suffix||"";
+      cio.unobserve(el);
+      if(reduce || t===0){ el.textContent = t+suf; return; }
+      var s=performance.now();
+      (function tick(now){
+        var p=Math.min((now-s)/900,1), k=1-Math.pow(1-p,3);
+        el.textContent = Math.round(t*k)+suf;
+        if(p<1) requestAnimationFrame(tick);
+      })(s);
+      setTimeout(function(){ el.textContent = t+suf; }, 1000);
+    });
+  }, {threshold:.5});
+  document.querySelectorAll("[data-count]").forEach(function(el){ cio.observe(el); });
+
+  /* ---- tier 2 mini terminal ---- */
+  var TERM = ["crawl A -> 84 objects mapped","replay as B -> 1042, 1043, 1044…","B received A's record. leak confirmed."];
+  var termEl = document.querySelector(".step-term");
+  if(termEl && !reduce){
+    var spans = termEl.querySelectorAll("span"), started=false;
+    new IntersectionObserver(function(es,obs){
+      if(!es[0].isIntersecting || started) return;
+      started=true; obs.disconnect();
+      TERM.forEach(function(line,i){
+        setTimeout(function(){
+          var el=spans[i], j=0;
+          (function type(){
+            el.textContent = "> " + line.slice(0,j++);
+            if(j<=line.length) setTimeout(type, 22);
+          })();
+        }, i*1250);
+      });
+    }, {threshold:.6}).observe(termEl);
+  } else if(termEl){
+    termEl.querySelectorAll("span").forEach(function(el,i){ el.textContent = "> "+TERM[i]; });
+  }
+
+  /* ---- evidence before / after ---- */
+  var BEFORE = {
+    label:"Response, before the patch", tag:"Leaked", tagCls:"tag red",
+    code:'<span class="r">HTTP/1.1 200 OK</span>\n'+
+         '<span class="k">content-type</span>: application/json\n\n'+
+         '{\n'+
+         '  <span class="k">"id"</span>: <span class="s">1042</span>,\n'+
+         '  <span class="k">"customer_email"</span>: <span class="r">"m.alvarez@gmail.com"</span>,\n'+
+         '  <span class="k">"shipping_address"</span>: <span class="r">"418 Chestnut St, Apt 6"</span>,\n'+
+         '  <span class="k">"card_last4"</span>: <span class="r">"4417"</span>,\n'+
+         '  <span class="k">"total_cents"</span>: <span class="s">18400</span>,\n'+
+         '  <span class="k">"owner_id"</span>: <span class="r">"usr_A"</span>\n'+
+         '}',
+    noteCls:"ev-verdict bad", bad:true,
+    note:'<b>Confirmed leak.</b> Your server handed three personal-information fields to a session with no claim on them, and the same trick walks the rest of the table.',
+    bbLabel:"Blast radius, order rows readable", bbNum:"4,312", bbWidth:"100%",
+    cls:'<b style="color:var(--breach)">3 of 3 conditions met</b>',
+    guard:'<b style="color:var(--txt-faint)">Pending</b>'
+  };
+  var AFTER = {
+    label:"Response, after the patch", tag:"Blocked", tagCls:"tag acid",
+    code:'<span class="s">HTTP/1.1 403 Forbidden</span>\n'+
+         '<span class="k">content-type</span>: application/json\n\n'+
+         '{ <span class="k">"error"</span>: <span class="w">"not_authorized"</span> }\n\n'+
+         '<span class="c"># re-test 2, account A, same endpoint</span>\n'+
+         '<span class="s">HTTP/1.1 200 OK</span>\n'+
+         '{ <span class="k">"id"</span>: <span class="s">1042</span>,\n'+
+         '  <span class="k">"owner_id"</span>: <span class="s">"usr_A"</span>, <span class="c">… }</span>',
+    noteCls:"ev-verdict good", bad:false,
+    note:'<b>Fix verified.</b> The identical attack now returns 403, and account A still reads its own order without error. Both re-tests passed, so Salus closes the finding.',
+    bbLabel:"Blast radius, order rows readable", bbNum:"0", bbWidth:"0%",
+    cls:'<b style="color:var(--acid)">Condition 1 no longer reachable</b>',
+    guard:'<b style="color:var(--acid)">2 of 2 re-tests passed</b>'
+  };
+  var resCode=document.getElementById("res-code"), resTag=document.getElementById("res-tag"),
+      resLbl=document.getElementById("res-label"), resNote=document.getElementById("res-note"),
+      bbFill=document.getElementById("bb-fill"), bbNum=document.getElementById("bb-num"),
+      foot3=document.getElementById("foot-3"), foot4=document.getElementById("foot-4");
+
+  var flash = document.querySelector(".ev-pane .flash");
+  var odo, odoEnd;
+  function rollTo(target){
+    cancelAnimationFrame(odo); clearTimeout(odoEnd);
+    var from = parseInt(bbNum.textContent.replace(/,/g,""),10) || 0;
+    if(reduce || from === target){ bbNum.textContent = target.toLocaleString(); return; }
+    var s = performance.now();
+    (function step(now){
+      var p = Math.min((now-s)/520,1), k = 1-Math.pow(1-p,3);
+      bbNum.textContent = Math.round(from + (target-from)*k).toLocaleString();
+      if(p<1) odo = requestAnimationFrame(step);
+    })(s);
+    // rAF stalls in a hidden tab; land on the real number regardless
+    odoEnd = setTimeout(function(){
+      cancelAnimationFrame(odo);
+      bbNum.textContent = target.toLocaleString();
+    }, 600);
+  }
+
+  function paint(d){
+    resCode.style.opacity=0; resCode.style.filter="blur(3px)";
+    resNote.style.opacity=0; resNote.style.filter="blur(3px)";
+    bbFill.style.width = d.bbWidth;
+    bbFill.classList.toggle("safe", !d.bad);
+    bbNum.style.color = d.bad ? "var(--breach)" : "var(--acid)";
+    rollTo(parseInt(String(d.bbNum).replace(/,/g,""),10) || 0);
+    if(!d.bad && !reduce && flash){
+      flash.classList.remove("go"); void flash.offsetWidth; flash.classList.add("go");
+    }
+    setTimeout(function(){
+      resCode.innerHTML=d.code;
+      resLbl.textContent=d.label;
+      resTag.className=d.tagCls; resTag.textContent=d.tag;
+      resNote.className=d.noteCls;
+      resNote.innerHTML='<svg width="17" height="17" viewBox="0 0 24 24" fill="none">'+(d.bad
+        ? '<path d="M12 3l9 16H3l9-16z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 9v4M12 16h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+        : '<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M8 12.4l2.6 2.6L16 9.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>')
+        +'</svg><span>'+d.note+'</span>';
+      foot3.innerHTML="Classifier: "+d.cls;
+      foot4.innerHTML="Regression guard: "+d.guard;
+      resCode.style.opacity=1; resCode.style.filter="none";
+      resNote.style.opacity=1; resNote.style.filter="none";
+    }, reduce?0:140);
+  }
+  document.querySelectorAll(".ev-toggle button").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      document.querySelectorAll(".ev-toggle button").forEach(function(o){ o.classList.remove("on"); o.setAttribute("aria-selected","false"); });
+      btn.classList.add("on"); btn.setAttribute("aria-selected","true");
+      paint(btn.dataset.state==="after" ? AFTER : BEFORE);
+    });
+  });
+
+  /* ---- nav scrim + scroll progress, one rAF-throttled listener ---- */
+  var nav = document.querySelector(".nav");
+  var bar = document.querySelector(".progress");
+  var ticking = false;
+  function onScroll(){
+    if(ticking) return;
+    ticking = true;
+    requestAnimationFrame(function(){
+      nav.classList.toggle("stuck", scrollY > 40);
+      var max = document.documentElement.scrollHeight - innerHeight;
+      bar.style.transform = "scaleX(" + (max > 0 ? Math.min(scrollY/max,1) : 0) + ")";
+      ticking = false;
+    });
+  }
+  addEventListener("scroll", onScroll, {passive:true});
+  onScroll();
+
+  /* ---- cursor spotlight, written to the card itself so children never restyle ---- */
+  if(!reduce && matchMedia("(hover: hover) and (pointer: fine)").matches){
+    document.querySelectorAll(".step,.fp-card,.evidence,.side-card,.legal-card").forEach(function(card){
+      card.addEventListener("pointermove", function(e){
+        var r = card.getBoundingClientRect();
+        card.style.setProperty("--px", (e.clientX - r.left) + "px");
+        card.style.setProperty("--py", (e.clientY - r.top) + "px");
+      }, {passive:true});
+    });
+  }
+
+  /* ---- marquees only animate while on screen ---- */
+  var fpSec = document.querySelector(".fp-sec");
+  if(fpSec){
+    new IntersectionObserver(function(es){
+      fpSec.classList.toggle("live", es[0].isIntersecting);
+    }, {rootMargin:"120px"}).observe(fpSec);
+  }
+
+  /* ---- scanner probe cells scattered over the grid ---- */
+  var cells = document.getElementById("cells");
+  if(cells && !reduce){
+    var cols = Math.ceil((innerWidth+160)/72), rows = Math.ceil((innerHeight+160)/72), html = "";
+    var taken = {};
+    // Twelve reads the same as twenty-two once they are scattered, and each one
+    // is a separately composited layer that ticks for the life of the page.
+    for(var c=0;c<12;c++){
+      // deterministic scatter, no Math.random so the pattern is stable between loads
+      var x = (c*7+3) % cols, y = (c*5+1) % rows, key = x+"_"+y;
+      if(taken[key]) continue;
+      taken[key] = 1;
+      html += '<i style="--x:'+x+';--y:'+y+';--d:'+(c*0.62).toFixed(2)+'s"></i>';
+    }
+    cells.innerHTML = html;
+  }
+
+  /* ---- pointer glow, eased toward the cursor instead of snapping to it ---- */
+  var glow = document.getElementById("glow");
+  if(glow && !reduce && matchMedia("(hover: hover) and (pointer: fine)").matches){
+    var tx = innerWidth/2, ty = innerHeight*0.42, gx = tx, gy = ty, raf = null;
+    addEventListener("pointermove", function(e){
+      tx = e.clientX; ty = e.clientY;
+      if(!raf) raf = requestAnimationFrame(follow);
+    }, {passive:true});
+    function follow(){
+      gx += (tx-gx)*0.085; gy += (ty-gy)*0.085;
+      glow.style.transform = "translate3d("+gx.toFixed(1)+"px,"+gy.toFixed(1)+"px,0)";
+      raf = (Math.abs(tx-gx) > 0.5 || Math.abs(ty-gy) > 0.5) ? requestAnimationFrame(follow) : null;
+    }
+  }
+
+  /* ---- generator fingerprint cards ---- */
+  var GENS = [
+    {n:"Lovable",      s:"supabase-js + /_app/immutable/",     f:"Ships the <b>anon key inside the bundle</b> and leaves row-level security switched off on new tables."},
+    {n:"v0 by Vercel", s:"app/ route handlers, no middleware", f:"Route handlers read the session, then <b>skip the owner_id comparison</b> against the caller."},
+    {n:"Bolt.new",     s:"vite + stackblitz build signature",  f:"Ships <b>source maps to production</b>, handing your original server code to anyone who looks."},
+    {n:"Replit Agent", s:".replit, replit.nix, port 3000",     f:"Leaves <b>debug routes mounted</b> and echoes secrets into the client bundle."},
+    {n:"Cursor",       s:"mixed hand and generated diff runs",  f:"Adds auth to one endpoint and <b>skips the sibling</b> written in a later pass."},
+    {n:"Base44",       s:"platform-hosted entity endpoints",   f:"<b>Entity permissions default to public</b> until you narrow them by hand."}
+  ];
+  function card(g){
+    return '<article class="fp-card"><div class="fp-top"><span class="fp-name">'+g.n+'</span>'+
+           '<span class="tag red">Known failure</span></div>'+
+           '<div class="fp-sig">'+g.s+'</div><p class="fp-fail">'+g.f+'</p></article>';
+  }
+  var m1=document.getElementById("mq1"), m2=document.getElementById("mq2");
+  var a=GENS.map(card).join(""), b=GENS.slice().reverse().map(card).join("");
+  if(m1) m1.innerHTML = a+a;
+  if(m2) m2.innerHTML = b+b;
+
+  /* ---- scroll reveal ---- */
+  var reveals = document.querySelectorAll("[data-reveal]");
+  var io = new IntersectionObserver(function(es){
+    es.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); } });
+  }, {rootMargin:"0px 0px -8% 0px", threshold:.08});
+  reveals.forEach(function(el,i){
+    el.style.transitionDelay = (Math.min(i%5,4)*60)+"ms";
+    io.observe(el);
+  });
+  // Safety net: nothing on this page may stay invisible because an observer
+  // misfired, was throttled in a background tab, or never ran at all.
+  function rescue(){
+    reveals.forEach(function(el){
+      if(el.classList.contains("in")) return;
+      var r = el.getBoundingClientRect();
+      if(r.top < innerHeight && r.bottom > 0){ el.style.transitionDelay = "0ms"; el.classList.add("in"); }
+    });
+  }
+  // Throttled to one pass per frame. Unthrottled, this read the geometry of
+  // every revealable element on every scroll event, which is a forced layout
+  // in the middle of the scroll.
+  var rescuePending = false;
+  function rescueSoon(){
+    if(rescuePending) return;
+    rescuePending = true;
+    requestAnimationFrame(function(){ rescuePending = false; rescue(); });
+  }
+  addEventListener("scroll", rescueSoon, {passive:true});
+  addEventListener("resize", rescueSoon, {passive:true});
+  setTimeout(rescue, 1200);
+  setTimeout(function(){ reveals.forEach(function(el){ el.classList.add("in"); }); }, 6000);
+
+  /* ---- count up ---- */
+  var cio = new IntersectionObserver(function(es){
+    es.forEach(function(e){
+      if(!e.isIntersecting) return;
+      var el=e.target, t=parseInt(el.dataset.count,10), suf=el.dataset.suffix||"";
+      cio.unobserve(el);
+      if(reduce || t===0){ el.textContent = t+suf; return; }
+      var s=performance.now();
+      (function tick(now){
+        var p=Math.min((now-s)/900,1), k=1-Math.pow(1-p,3);
+        el.textContent = Math.round(t*k)+suf;
+        if(p<1) requestAnimationFrame(tick);
+      })(s);
+      setTimeout(function(){ el.textContent = t+suf; }, 1000);
+    });
+  }, {threshold:.5});
+  document.querySelectorAll("[data-count]").forEach(function(el){ cio.observe(el); });
+
+  /* ---- tier 2 mini terminal ---- */
+  var TERM = ["crawl A -> 84 objects mapped","replay as B -> 1042, 1043, 1044…","B received A's record. leak confirmed."];
+  var termEl = document.querySelector(".step-term");
+  if(termEl && !reduce){
+    var spans = termEl.querySelectorAll("span"), started=false;
+    new IntersectionObserver(function(es,obs){
+      if(!es[0].isIntersecting || started) return;
+      started=true; obs.disconnect();
+      TERM.forEach(function(line,i){
+        setTimeout(function(){
+          var el=spans[i], j=0;
+          (function type(){
+            el.textContent = "> " + line.slice(0,j++);
+            if(j<=line.length) setTimeout(type, 22);
+          })();
+        }, i*1250);
+      });
+    }, {threshold:.6}).observe(termEl);
+  } else if(termEl){
+    termEl.querySelectorAll("span").forEach(function(el,i){ el.textContent = "> "+TERM[i]; });
+  }
+
+  /* ---- evidence before / after ---- */
+  var BEFORE = {
+    label:"Response, before the patch", tag:"Leaked", tagCls:"tag red",
+    code:'<span class="r">HTTP/1.1 200 OK</span>\n'+
+         '<span class="k">content-type</span>: application/json\n\n'+
+         '{\n'+
+         '  <span class="k">"id"</span>: <span class="s">1042</span>,\n'+
+         '  <span class="k">"customer_email"</span>: <span class="r">"m.alvarez@gmail.com"</span>,\n'+
+         '  <span class="k">"shipping_address"</span>: <span class="r">"418 Chestnut St, Apt 6"</span>,\n'+
+         '  <span class="k">"card_last4"</span>: <span class="r">"4417"</span>,\n'+
+         '  <span class="k">"total_cents"</span>: <span class="s">18400</span>,\n'+
+         '  <span class="k">"owner_id"</span>: <span class="r">"usr_A"</span>\n'+
+         '}',
+    noteCls:"ev-verdict bad", bad:true,
+    note:'<b>Confirmed leak.</b> Your server handed three personal-information fields to a session with no claim on them, and the same trick walks the rest of the table.',
+    bbLabel:"Blast radius, order rows readable", bbNum:"4,312", bbWidth:"100%",
+    cls:'<b style="color:var(--breach)">3 of 3 conditions met</b>',
+    guard:'<b style="color:var(--txt-faint)">Pending</b>'
+  };
+  var AFTER = {
+    label:"Response, after the patch", tag:"Blocked", tagCls:"tag acid",
+    code:'<span class="s">HTTP/1.1 403 Forbidden</span>\n'+
+         '<span class="k">content-type</span>: application/json\n\n'+
+         '{ <span class="k">"error"</span>: <span class="w">"not_authorized"</span> }\n\n'+
+         '<span class="c"># re-test 2, account A, same endpoint</span>\n'+
+         '<span class="s">HTTP/1.1 200 OK</span>\n'+
+         '{ <span class="k">"id"</span>: <span class="s">1042</span>,\n'+
+         '  <span class="k">"owner_id"</span>: <span class="s">"usr_A"</span>, <span class="c">… }</span>',
+    noteCls:"ev-verdict good", bad:false,
+    note:'<b>Fix verified.</b> The identical attack now returns 403, and account A still reads its own order without error. Both re-tests passed, so Salus closes the finding.',
+    bbLabel:"Blast radius, order rows readable", bbNum:"0", bbWidth:"0%",
+    cls:'<b style="color:var(--acid)">Condition 1 no longer reachable</b>',
+    guard:'<b style="color:var(--acid)">2 of 2 re-tests passed</b>'
+  };
+  var resCode=document.getElementById("res-code"), resTag=document.getElementById("res-tag"),
+      resLbl=document.getElementById("res-label"), resNote=document.getElementById("res-note"),
+      bbFill=document.getElementById("bb-fill"), bbNum=document.getElementById("bb-num"),
+      foot3=document.getElementById("foot-3"), foot4=document.getElementById("foot-4");
+
+  var flash = document.querySelector(".ev-pane .flash");
+  var odo, odoEnd;
+  function rollTo(target){
+    cancelAnimationFrame(odo); clearTimeout(odoEnd);
+    var from = parseInt(bbNum.textContent.replace(/,/g,""),10) || 0;
+    if(reduce || from === target){ bbNum.textContent = target.toLocaleString(); return; }
+    var s = performance.now();
+    (function step(now){
+      var p = Math.min((now-s)/520,1), k = 1-Math.pow(1-p,3);
+      bbNum.textContent = Math.round(from + (target-from)*k).toLocaleString();
+      if(p<1) odo = requestAnimationFrame(step);
+    })(s);
+    // rAF stalls in a hidden tab; land on the real number regardless
+    odoEnd = setTimeout(function(){
+      cancelAnimationFrame(odo);
+      bbNum.textContent = target.toLocaleString();
+    }, 600);
+  }
+
+  function paint(d){
+    resCode.style.opacity=0; resCode.style.filter="blur(3px)";
+    resNote.style.opacity=0; resNote.style.filter="blur(3px)";
+    bbFill.style.width = d.bbWidth;
+    bbFill.classList.toggle("safe", !d.bad);
+    bbNum.style.color = d.bad ? "var(--breach)" : "var(--acid)";
+    rollTo(parseInt(String(d.bbNum).replace(/,/g,""),10) || 0);
+    if(!d.bad && !reduce && flash){
+      flash.classList.remove("go"); void flash.offsetWidth; flash.classList.add("go");
+    }
+    setTimeout(function(){
+      resCode.innerHTML=d.code;
+      resLbl.textContent=d.label;
+      resTag.className=d.tagCls; resTag.textContent=d.tag;
+      resNote.className=d.noteCls;
+      resNote.innerHTML='<svg width="17" height="17" viewBox="0 0 24 24" fill="none">'+(d.bad
+        ? '<path d="M12 3l9 16H3l9-16z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M12 9v4M12 16h.01" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>'
+        : '<circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M8 12.4l2.6 2.6L16 9.6" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"/>')
+        +'</svg><span>'+d.note+'</span>';
+      foot3.innerHTML="Classifier: "+d.cls;
+      foot4.innerHTML="Regression guard: "+d.guard;
+      resCode.style.opacity=1; resCode.style.filter="none";
+      resNote.style.opacity=1; resNote.style.filter="none";
+    }, reduce?0:140);
+  }
+  document.querySelectorAll(".ev-toggle button").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      document.querySelectorAll(".ev-toggle button").forEach(function(o){ o.classList.remove("on"); o.setAttribute("aria-selected","false"); });
+      btn.classList.add("on"); btn.setAttribute("aria-selected","true");
+      paint(btn.dataset.state==="after" ? AFTER : BEFORE);
+    });
+  });
+
+})();
+</script>
+</body>
+</html>
