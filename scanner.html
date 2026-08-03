@@ -1,0 +1,1645 @@
+<!DOCTYPE html>
+<html lang="en" data-motion="on">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>SALUS scan</title>
+<meta name="robots" content="noindex"/>
+<link rel="preconnect" href="https://api.fontshare.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&f[]=switzer@400,500,600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%2307090A'/%3E%3Ccircle cx='10.5' cy='10.5' r='6.2' fill='none' stroke='%23D7FF3E' stroke-width='2'/%3E%3Cpath d='M15.3 15.3 L20.4 20.4' stroke='%23D7FF3E' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E"/>
+<link rel="stylesheet" href="/auth.css"/>
+<style>
+/* Hidden until a session is confirmed, so a signed-out visitor never sees the shell. */
+.gated{visibility:hidden}
+.gated.ready{visibility:visible}
+
+/* A translated layer, not a moving gradient. Repositioning a gradient inside a
+   full-viewport box repaints that whole layer on every mouse move; a transform
+   is handed to the compositor and costs nothing per frame. */
+.glow{
+  position:fixed;top:0;left:0;width:1120px;height:1120px;margin:-560px 0 0 -560px;
+  border-radius:50%;z-index:1;pointer-events:none;will-change:transform;
+  background:radial-gradient(circle,#d7ff3e12 0%,transparent 62%);
+  transform:translate3d(50vw,26vh,0);
+}
+@media (prefers-reduced-motion: reduce){.glow{display:none}}
+
+.wrap{position:relative;z-index:2;width:min(1180px,92vw);margin:0 auto;padding:1rem 0 6rem}
+.hero-row{max-width:640px;margin-bottom:2.4rem}
+.hero-row h1{font-size:clamp(1.9rem,3.6vw,2.8rem)}
+.hero-row .sub{color:var(--txt-dim);margin:.7rem 0 0;font-size:.98rem}
+.eyebrow{display:block;color:var(--acid);margin-bottom:.9rem}
+
+.account-badge{
+  display:none;align-items:center;gap:.5rem;font-size:.85rem;color:var(--txt-dim);
+  background:#07090a59;border:1px solid var(--line);padding:.5rem 1rem;border-radius:999px;
+}
+.account-badge.show{display:flex}
+.account-badge b{color:var(--txt);font-weight:500}
+.nav-right{display:flex;align-items:center;gap:.7rem}
+
+.stage[hidden]{display:none}
+
+.panels{display:grid;grid-template-columns:.85fr 1.15fr;gap:1.2rem;align-items:start}
+@media(max-width:980px){.panels{grid-template-columns:1fr}}
+/* 50% transparent, matching the console */
+.panel{background:#0E121480;border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
+.panel-head{
+  display:flex;align-items:center;justify-content:space-between;gap:1rem;
+  padding:1rem 1.5rem;border-bottom:1px solid var(--line);background:#dfe7ea08;
+  font-family:var(--font-mono);font-size:.66rem;letter-spacing:.16em;color:var(--txt-dim);
+}
+.panel-body{padding:1.5rem}
+
+/* target inputs */
+.field-row{display:grid;gap:.4rem;margin-bottom:1rem}
+.field-row label{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.14em;color:var(--txt-dim)}
+.field-row input{
+  width:100%;padding:.8rem .95rem;border:1px solid var(--line);border-radius:12px;
+  background:#07090a80;color:var(--txt);font-family:var(--font-mono);font-size:.88rem;outline:none;
+  transition:border-color 200ms ease,box-shadow 200ms ease;
+}
+/* --txt-faint is 2.71:1 on this background, which fails AA. Anything a reader
+   has to actually read uses --txt-dim at 5.63:1 instead. */
+.field-row input::placeholder{color:var(--txt-dim)}
+.field-row input:focus{border-color:#d7ff3e8c;box-shadow:0 0 0 4px #d7ff3e14}
+
+.src-link{
+  margin-left:auto;font-family:var(--font-mono);font-size:.62rem;letter-spacing:.1em;
+  color:var(--txt-dim);white-space:nowrap;
+  text-decoration:underline;text-underline-offset:3px;transition:color 180ms ease;
+}
+.src-link:hover{color:var(--acid)}
+
+/* Everything the console attached, offered as a choice for this run. One scan
+   row holds one target and one code source, so these pick rather than add. */
+.picker{margin:0 0 .9rem}
+.picker[hidden]{display:none}
+.picker .grp{margin-bottom:.7rem}
+.picker .grp:last-child{margin-bottom:0}
+.picker .lbl{display:block;font-family:var(--font-mono);font-size:.62rem;letter-spacing:.12em;
+  color:var(--txt-faint);margin-bottom:.4rem}
+.picker .row{display:flex;flex-wrap:wrap;gap:.4rem}
+.chip{
+  display:inline-flex;align-items:center;gap:.45rem;max-width:100%;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  border:1px solid var(--line);background:#07090a80;color:var(--txt-dim);border-radius:999px;
+  padding:.35rem .8rem;font-family:var(--font-mono);font-size:.66rem;letter-spacing:.06em;
+  transition:border-color 180ms ease,color 180ms ease,background 180ms ease;
+}
+.chip:hover{color:var(--txt);border-color:var(--line-2)}
+.chip.on{color:var(--acid);border-color:#d7ff3e66;background:#d7ff3e12}
+.chip.off{opacity:.5}
+.chip.off:hover{color:var(--txt-dim);border-color:var(--line)}
+
+/* flaw options */
+.group{border-bottom:1px solid var(--line)}
+.group:last-child{border-bottom:0}
+.group-head{
+  display:flex;align-items:center;gap:.8rem;padding:1rem 1.5rem;background:#dfe7ea05;
+  border-bottom:1px solid var(--line);
+}
+.group-head .tier{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.14em;color:var(--acid)}
+.group-head .name{font-size:.92rem;color:var(--txt);font-weight:500}
+.group-head .state{
+  margin-left:auto;font-family:var(--font-mono);font-size:.6rem;letter-spacing:.12em;
+  padding:.28rem .6rem;border-radius:6px;border:1px solid var(--line);color:var(--txt-dim);white-space:nowrap;
+}
+.group.locked .group-head .tier{color:var(--txt-dim)}
+.group.locked .group-head .state{color:var(--amber);border-color:#ffae2b47;background:#ffae2b12}
+.group-all{
+  background:none;border:0;padding:0;color:var(--txt-dim);font-family:var(--font-mono);
+  font-size:.62rem;letter-spacing:.12em;text-decoration:underline;text-underline-offset:3px;
+}
+.group-all:hover{color:var(--acid)}
+.group.locked .group-all{display:none}
+
+.opt{
+  display:flex;gap:.85rem;align-items:flex-start;padding:1rem 1.5rem;
+  border-bottom:1px solid var(--line);cursor:pointer;
+  transition:background 180ms ease;
+}
+.opt:last-child{border-bottom:0}
+.opt:hover{background:#dfe7ea05}
+.opt input,.pick{
+  appearance:none;flex:none;width:19px;height:19px;margin:2px 0 0;border-radius:6px;
+  border:1.5px solid var(--line-2);background:transparent;cursor:pointer;
+  display:grid;place-content:center;transition:background 160ms ease,border-color 160ms ease;
+}
+.opt input::before,.pick::before{
+  content:"";width:10px;height:10px;transform:scale(0);transition:transform 140ms var(--ease-out);
+  background:var(--ink);clip-path:polygon(14% 44%,0 60%,40% 100%,100% 18%,84% 4%,38% 68%);
+}
+.opt input:checked,.pick:checked{background:var(--acid);border-color:var(--acid)}
+.opt input:checked::before,.pick:checked::before{transform:scale(1)}
+.opt .txt{flex:1;min-width:0}
+.opt .ttl{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;font-size:.93rem;color:var(--txt);font-weight:500}
+.opt .why{margin:.3rem 0 0;font-size:.85rem;color:var(--txt-dim);line-height:1.55}
+.opt .code{
+  display:inline-block;margin-top:.5rem;font-family:var(--font-mono);font-size:.62rem;letter-spacing:.1em;
+  color:var(--txt-dim);border:1px solid var(--line);border-radius:6px;padding:.2rem .5rem;
+}
+.opt.locked{cursor:not-allowed;opacity:.55}
+.opt.locked:hover{background:transparent}
+.opt.locked input{cursor:not-allowed}
+.opt.nudge{animation:shake 320ms var(--ease-out)}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+
+.sev{
+  font-family:var(--font-mono);font-size:.58rem;letter-spacing:.12em;
+  padding:.2rem .48rem;border-radius:5px;border:1px solid;white-space:nowrap;
+}
+.sev.breach{color:var(--breach);border-color:#ff4a3266;background:#ff4a3217}
+.sev.high{color:var(--amber);border-color:#ffae2b66;background:#ffae2b12}
+.sev.med{color:var(--txt-dim);border-color:var(--line)}
+
+/* run bar */
+/* The run control sits with the target now, so the decision and the button
+   are in the same place instead of a full page apart. */
+.runbar{
+  display:flex;align-items:center;gap:1rem;flex-wrap:wrap;
+  padding:1.2rem 1.5rem;border-top:1px solid var(--line);background:#dfe7ea05;
+}
+.runbar .acid-btn{margin-left:auto}
+
+/* The checks scroll inside their own panel rather than stretching the page. */
+.groups{max-height:min(62vh,720px);overflow-y:auto;overscroll-behavior:contain}
+.groups::-webkit-scrollbar{width:10px}
+.groups::-webkit-scrollbar-thumb{background:#DFE7EA24;border-radius:8px;border:3px solid transparent;background-clip:content-box}
+.groups::-webkit-scrollbar-thumb:hover{background:#DFE7EA3d;background-clip:content-box}
+.runbar .count{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.1em;color:var(--txt-dim)}
+.runbar .count b{color:var(--acid);font-weight:500}
+.runbar .acid-btn{margin-left:auto}
+.note{margin:1rem 0 0;color:var(--txt-dim);font-size:.78rem;line-height:1.6}
+
+.msg{display:none;margin:1.2rem 0 0;padding:.85rem 1rem;border-radius:12px;font-size:.87rem;border:1px solid;line-height:1.55}
+.msg.show{display:block}
+.msg.err{border-color:#ff4a3247;background:#ff4a3214;color:#FFC2B7}
+.msg.ok{border-color:#d7ff3e42;background:#d7ff3e12;color:#EAFFAC}
+.msg.warn{border-color:#ffae2b47;background:#ffae2b12;color:#FFDFA8}
+.msg code{font-family:var(--font-mono);font-size:.82em;color:var(--txt)}
+.msg a{color:inherit;text-decoration:underline;text-underline-offset:3px}
+
+/* ---------------------------------------------------------- the report ---- */
+.res-head{display:flex;align-items:flex-end;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.5rem}
+.res-head h1{font-size:clamp(1.7rem,3vw,2.4rem);word-break:break-all}
+.res-head .sub{color:var(--txt-dim);margin:.7rem 0 0;font-size:.95rem;display:flex;align-items:center;gap:.6rem;flex-wrap:wrap}
+.res-head .checks{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.06em}
+
+.tabs{display:flex;gap:.25rem;padding:.35rem;margin-bottom:1.4rem;width:max-content;max-width:100%;
+  background:#0E121480;border:1px solid var(--line);border-radius:999px;overflow-x:auto}
+.tab{
+  display:flex;align-items:center;gap:.5rem;white-space:nowrap;border:0;background:none;color:var(--txt-dim);
+  padding:.6rem 1.15rem;border-radius:999px;font-size:.92rem;font-family:var(--font-body);
+  transition:color 180ms ease,background 180ms ease,box-shadow 180ms ease;
+}
+.tab:hover{color:var(--txt)}
+.tab[aria-selected="true"]{color:var(--acid);background:#d7ff3e12;box-shadow:inset 0 0 0 1px #d7ff3e3d}
+.tab .cnt{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.1em;color:var(--txt-dim)}
+.tab[aria-selected="true"] .cnt{color:#d7ff3ecc}
+
+/* The findings and activity lists scroll inside their own panel instead of
+   growing the page. Height is viewport-bound so the sticky chat stays aligned. */
+.tabpanel{max-height:calc(100vh - 11rem);overflow-y:auto;overflow-x:hidden;padding-right:.55rem;scrollbar-width:thin;scrollbar-color:#d7ff3e55 transparent}
+.tabpanel::-webkit-scrollbar{width:12px}
+.tabpanel::-webkit-scrollbar-track{background:transparent}
+.tabpanel::-webkit-scrollbar-thumb{background:#d7ff3e40;border-radius:99px;border:3px solid transparent;background-clip:content-box}
+.tabpanel::-webkit-scrollbar-thumb:hover{background:#d7ff3ea6;background-clip:content-box}
+@media(max-width:1040px){.tabpanel{max-height:none;overflow:visible;padding-right:0}}
+.tabpanel[hidden]{display:none}
+
+.res-grid{display:grid;grid-template-columns:1.25fr .85fr;gap:1.2rem;align-items:start}
+@media(max-width:1040px){.res-grid{grid-template-columns:1fr}}
+
+.status-chip{
+  display:inline-flex;align-items:center;gap:.45rem;font-family:var(--font-mono);font-size:.62rem;
+  letter-spacing:.12em;padding:.3rem .7rem;border-radius:999px;border:1px solid;
+}
+.status-chip.done{color:var(--acid);border-color:#d7ff3e66;background:#d7ff3e17}
+.status-chip.running{color:var(--amber);border-color:#ffae2b66;background:#ffae2b12}
+.status-chip.queued,.status-chip.pending{color:var(--txt-dim);border-color:var(--line)}
+.status-chip.failed,.status-chip.blocked{color:var(--breach);border-color:#ff4a3266;background:#ff4a3217}
+.status-chip .dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex:none}
+.status-chip.running .dot{animation:pulse 1.3s var(--ease-in-out) infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.25}}
+@media (prefers-reduced-motion: reduce){.status-chip.running .dot{animation:none}}
+
+/* Selection changes colour and an inset ring but never the border width, so
+   ticking a finding cannot reflow the text inside it. */
+.finding{
+  position:relative;background:#0E121480;border:1px solid var(--line);border-radius:var(--r-sm);
+  margin-bottom:.8rem;overflow:hidden;
+  transition:border-color 180ms ease,box-shadow 180ms ease;
+}
+.finding::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--line-2)}
+.finding.sev-breach::before{background:var(--breach)}
+.finding.sev-high::before{background:var(--amber)}
+.finding.on{border-color:#d7ff3e59;box-shadow:inset 0 0 0 1px #d7ff3e2e}
+.finding-main{display:flex;gap:.85rem;align-items:flex-start;padding:1.1rem 1.3rem 1.1rem 1.5rem}
+.finding-body{flex:1;min-width:0}
+.finding-top{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.5rem}
+.finding-loc{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.04em;color:var(--txt-dim);word-break:break-all}
+.finding h3{font-family:var(--font-display);font-size:1.02rem;font-weight:500;color:var(--txt);margin:0 0 .35rem;letter-spacing:-.015em}
+.finding .blast{margin:0;font-size:.88rem;color:var(--txt-dim);line-height:1.6}
+.finding .meta{
+  margin-top:.7rem;display:flex;gap:.9rem;flex-wrap:wrap;align-items:center;
+  font-family:var(--font-mono);font-size:.62rem;letter-spacing:.1em;color:var(--txt-dim);
+}
+.evidence-btn{
+  background:none;border:1px solid var(--line);border-radius:999px;padding:.28rem .7rem;
+  color:var(--txt-dim);font-family:var(--font-mono);font-size:.6rem;letter-spacing:.12em;
+  transition:color 180ms ease,border-color 180ms ease;
+}
+.evidence-btn:hover{color:var(--acid);border-color:#d7ff3e66}
+.evidence{
+  margin:0 1.3rem 1.1rem 3.35rem;padding:.9rem 1.05rem;border:1px solid var(--line);border-radius:var(--r-sm);
+  background:#07090a80;font-size:.85rem;line-height:1.65;color:var(--txt-dim);white-space:pre-wrap;
+}
+.evidence .lbl{
+  display:block;font-family:var(--font-mono);font-size:.6rem;letter-spacing:.14em;
+  color:var(--txt-dim);margin-bottom:.45rem;
+}
+@media(max-width:600px){.evidence{margin-left:1.3rem}}
+
+/* agent activity flow */
+.flow{background:#0E121480;border:1px solid var(--line);border-radius:var(--r-sm);padding:1.2rem 1.4rem}
+.flow.on{border-color:#d7ff3e59;box-shadow:inset 0 0 0 1px #d7ff3e2e}
+.flow.is-pending{opacity:.8}
+.flow-top{display:flex;align-items:center;gap:.55rem;flex-wrap:wrap;margin-bottom:.55rem}
+.flow-top .when{margin-left:auto;font-family:var(--font-mono);font-size:.62rem;letter-spacing:.1em;color:var(--txt-dim)}
+.flow h3{font-family:var(--font-display);font-size:1rem;font-weight:500;color:var(--txt);margin:0 0 .3rem;letter-spacing:-.015em}
+.flow .loc{font-family:var(--font-mono);font-size:.68rem;color:var(--txt-dim);margin-bottom:.5rem;word-break:break-all}
+.flow .blast{margin:0;font-size:.85rem;color:var(--txt-dim);line-height:1.6}
+.flow-stats{display:flex;gap:1.6rem;flex-wrap:wrap;margin:.9rem 0}
+.flow-stats .k{font-family:var(--font-mono);font-size:.58rem;letter-spacing:.12em;color:var(--txt-dim)}
+.flow-stats .v{font-family:var(--font-display);font-size:1.05rem;color:var(--txt);margin-top:.15rem}
+.steps{border-top:1px solid var(--line);padding-top:.85rem;display:grid;gap:.6rem}
+.step{display:flex;gap:.65rem;align-items:flex-start}
+.step .bullet{
+  width:14px;height:14px;margin-top:2px;border-radius:50%;flex:none;
+  border:1.5px solid var(--line-2);display:grid;place-content:center;
+}
+.step.done .bullet{background:var(--acid);border-color:var(--acid)}
+.step.done .bullet::before{
+  content:"";width:8px;height:8px;background:var(--ink);
+  clip-path:polygon(14% 44%,0 60%,40% 100%,100% 18%,84% 4%,38% 68%);
+}
+.step.active .bullet{border-color:var(--amber)}
+.step.active .bullet::before{content:"";width:5px;height:5px;border-radius:50%;background:var(--amber)}
+.step.blocked .bullet{border-color:var(--breach)}
+.step.blocked .bullet::before{content:"";width:7px;height:1.5px;background:var(--breach)}
+.step .label{font-size:.83rem;line-height:1.55;color:var(--txt-dim)}
+.step.done .label,.step.active .label{color:var(--txt)}
+.connector{display:flex;justify-content:center;padding:.35rem 0}
+
+/* chat */
+.chat-panel{position:sticky;top:1rem}
+@media(max-width:1040px){.chat-panel{position:static}}
+.chat{display:flex;flex-direction:column;padding:1.2rem 1.3rem}
+.chat-ctx{
+  font-size:.82rem;color:var(--txt-dim);background:#d7ff3e0a;border:1px solid #d7ff3e2b;
+  border-radius:12px;padding:.6rem .8rem;margin-bottom:.9rem;line-height:1.6;
+}
+.chat-ctx b{color:var(--txt);font-weight:500}
+/* min-height:0 is what actually lets this scroll. Without it the flex item
+   grows to fit its content and overflow-y never engages. */
+.chat-log{
+  flex:1;min-height:0;max-height:min(46vh,420px);overflow-y:auto;
+  display:flex;flex-direction:column;gap:.6rem;margin-bottom:.9rem;
+  padding:.9rem;background:#07090a66;border:1px solid var(--line);border-radius:var(--r-sm);
+}
+.chat-log::-webkit-scrollbar{width:8px}
+.chat-log::-webkit-scrollbar-thumb{background:#DFE7EA24;border-radius:8px}
+.bubble{max-width:92%;padding:.6rem .85rem;border-radius:14px;font-size:.87rem;line-height:1.6;white-space:pre-wrap}
+.bubble.agent{align-self:flex-start;background:#151B1Ecc;border:1px solid var(--line);color:var(--txt);border-bottom-left-radius:5px}
+.bubble.user{align-self:flex-end;background:#D7FF3E1f;border:1px solid #d7ff3e59;color:var(--txt);border-bottom-right-radius:5px}
+.chat-form{display:flex;gap:.5rem}
+.chat-form input{
+  flex:1;min-width:0;padding:.7rem .9rem;border:1px solid var(--line);border-radius:999px;
+  background:#07090a80;color:var(--txt);font-family:var(--font-body);font-size:.88rem;outline:none;
+  transition:border-color 200ms ease,box-shadow 200ms ease;
+}
+.chat-form input::placeholder{color:var(--txt-dim)}
+.chat-form input:focus{border-color:#d7ff3e8c;box-shadow:0 0 0 4px #d7ff3e14}
+.chat-form .acid-btn{padding:.7rem 1.1rem;font-size:.88rem;flex:none}
+.chat-foot{margin:.7rem 0 0;font-size:.72rem;color:var(--txt-dim);line-height:1.5}
+
+/* ---- agentic mode ---- */
+.agentic{display:flex;flex-direction:column;padding:1.2rem 1.3rem}
+.agentic-lede{margin:0 0 .9rem;font-size:.85rem;color:var(--txt-dim);line-height:1.6}
+.edit-list{display:flex;flex-direction:column;gap:.5rem;max-height:min(38vh,340px);overflow-y:auto;margin-bottom:1rem}
+.edit-list::-webkit-scrollbar{width:8px}
+.edit-list::-webkit-scrollbar-thumb{background:#DFE7EA24;border-radius:8px}
+.edit-item{
+  display:flex;gap:.7rem;align-items:flex-start;padding:.75rem .85rem;cursor:pointer;
+  background:#07090a66;border:1px solid var(--line);border-radius:12px;
+  transition:border-color 180ms ease,background 180ms ease;
+}
+.edit-item:hover{border-color:var(--line-2)}
+.edit-item.on{border-color:#d7ff3e59;background:#d7ff3e0a}
+.edit-item input{
+  appearance:none;flex:none;width:17px;height:17px;margin:1px 0 0;border-radius:5px;
+  border:1.5px solid var(--line-2);background:transparent;cursor:pointer;
+  display:grid;place-content:center;transition:background 160ms ease,border-color 160ms ease;
+}
+.edit-item input::before{
+  content:"";width:9px;height:9px;transform:scale(0);transition:transform 140ms var(--ease-out);
+  background:var(--ink);clip-path:polygon(14% 44%,0 60%,40% 100%,100% 18%,84% 4%,38% 68%);
+}
+.edit-item input:checked{background:var(--acid);border-color:var(--acid)}
+.edit-item input:checked::before{transform:scale(1)}
+.edit-item .ei-body{min-width:0}
+.edit-item .ei-title{display:block;font-size:.88rem;color:var(--txt);font-weight:500}
+.edit-item .ei-why{display:block;margin-top:.2rem;font-size:.78rem;color:var(--txt-dim);line-height:1.5}
+.edit-item .ei-files{
+  display:block;margin-top:.35rem;font-family:var(--font-mono);font-size:.62rem;
+  letter-spacing:.06em;color:var(--txt-faint);word-break:break-all;
+}
+.edit-item .ei-open{color:var(--amber)}
+.agentic-run{width:100%}
+.agentic-run:disabled{cursor:wait}
+
+.agent-progress{margin-top:1rem;padding:.9rem 1rem;background:#07090a66;border:1px solid var(--line);border-radius:var(--r-sm)}
+.ap-head{display:flex;align-items:baseline;gap:.6rem;margin-bottom:.6rem}
+.ap-head .lbl{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.12em;color:var(--txt-dim)}
+.ap-count{margin-left:auto;font-family:var(--font-mono);font-size:.66rem;color:var(--acid)}
+.ap-steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.4rem}
+.ap-steps li{display:flex;gap:.55rem;align-items:flex-start;font-size:.82rem;color:var(--txt-dim);line-height:1.5}
+.ap-steps li i{flex:none;width:14px;height:14px;margin-top:.18rem;border-radius:50%;border:1.5px solid var(--line-2);font-style:normal}
+.ap-steps li.active i{border-color:var(--amber);box-shadow:inset 0 0 0 3px var(--amber)}
+.ap-steps li.active{color:var(--txt)}
+.ap-steps li.done i{border-color:var(--acid);background:var(--acid)}
+.ap-steps li.done{color:var(--txt)}
+.ap-steps li.failed i{border-color:var(--breach);background:var(--breach)}
+.ap-steps li.failed{color:#FFC2B7}
+
+.agent-out{display:flex;flex-direction:column;gap:.6rem;margin-top:1rem}
+.agent-out .acid-btn,.agent-out .pill-btn{width:100%;text-align:center}
+
+.empty{padding:2rem 1.5rem;color:var(--txt-dim);font-size:.92rem;line-height:1.65;
+  background:#0E121480;border:1px solid var(--line);border-radius:var(--r-sm)}
+.empty b{color:var(--txt);display:block;margin-bottom:.4rem;font-weight:500}
+.empty code{font-family:var(--font-mono);font-size:.82em;color:var(--acid)}
+
+/* ownership modal */
+.overlay{
+  position:fixed;inset:0;z-index:40;display:none;align-items:center;justify-content:center;padding:1.5rem;
+  /* A solid scrim rather than a backdrop blur: the blur would re-sample the
+     whole animated background behind it on every frame the modal is open. */
+  background:#07090af2;
+}
+.overlay.show{display:flex;animation:fade 220ms var(--ease-out)}
+@keyframes fade{from{opacity:0}to{opacity:1}}
+.modal{
+  width:100%;max-width:520px;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r-lg);padding:2rem;box-shadow:0 40px 90px -50px #000;
+  animation:rise 260ms var(--ease-out);
+}
+@keyframes rise{from{transform:translateY(14px);opacity:0}to{transform:translateY(0);opacity:1}}
+.modal h2{font-size:1.45rem;margin-bottom:.55rem}
+.modal .modal-sub{color:var(--txt-dim);font-size:.92rem;margin:0 0 1.3rem}
+.terms{
+  max-height:190px;overflow-y:auto;border:1px solid var(--line);border-radius:var(--r-sm);
+  background:#07090a80;padding:1rem 1.1rem;font-size:.85rem;color:var(--txt-dim);line-height:1.65;
+}
+.terms p{margin:0 0 .8rem}
+.terms p:last-child{margin:0}
+.recap{
+  margin:1rem 0 0;border:1px solid var(--line);border-radius:var(--r-sm);background:#dfe7ea05;
+  padding:.9rem 1.1rem;font-family:var(--font-mono);font-size:.68rem;letter-spacing:.06em;color:var(--txt-dim);
+}
+.recap div{display:flex;gap:1rem;padding:.22rem 0}
+.recap span{color:var(--txt-dim);min-width:74px}
+.recap b{color:var(--txt);font-weight:500;word-break:break-all}
+.gate{
+  display:flex;gap:.75rem;align-items:flex-start;padding:1rem 1.1rem;margin:1.2rem 0;
+  border:1px solid var(--line);border-radius:var(--r-sm);background:#dfe7ea08;
+  transition:border-color 220ms ease,background 220ms ease;
+}
+.gate.armed{border-color:#d7ff3e59;background:#d7ff3e0f}
+.gate.nudge{border-color:var(--breach);animation:shake 320ms var(--ease-out)}
+.gate input{
+  appearance:none;flex:none;width:19px;height:19px;margin:2px 0 0;border-radius:6px;
+  border:1.5px solid var(--line-2);background:transparent;cursor:pointer;
+  display:grid;place-content:center;transition:background 160ms ease,border-color 160ms ease;
+}
+.gate input::before{
+  content:"";width:10px;height:10px;transform:scale(0);transition:transform 140ms var(--ease-out);
+  background:var(--ink);clip-path:polygon(14% 44%,0 60%,40% 100%,100% 18%,84% 4%,38% 68%);
+}
+.gate input:checked{background:var(--acid);border-color:var(--acid)}
+.gate input:checked::before{transform:scale(1)}
+.gate label{font-size:.87rem;color:var(--txt-dim);cursor:pointer;line-height:1.55}
+.gate label b{color:var(--txt);font-weight:500}
+.modal-actions{display:flex;gap:.7rem}
+.modal-actions .pill-btn,.modal-actions .acid-btn{flex:1;text-align:center}
+</style>
+</head>
+<body>
+
+<div class="field" aria-hidden="true">
+  <div class="grid"></div>
+  <span class="aurora au-1"></span><span class="aurora au-2"></span>
+  <div class="vignette"></div>
+</div>
+<div class="glow" id="glow" aria-hidden="true"></div>
+
+<div class="gated" id="gated">
+  <nav class="auth-nav">
+    <a class="nav-logo" href="/" aria-label="Salus, home">
+      SALUS
+      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="10.5" cy="10.5" r="6.4" fill="none" stroke="var(--acid)" stroke-width="1.9"/>
+        <path d="M15.3 15.3 L20.4 20.4" stroke="var(--acid)" stroke-width="2.3" stroke-linecap="round"/>
+        <path d="M7.7 10.6 L9.8 12.7 L13.5 8.6" fill="none" stroke="var(--acid)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+    <div class="nav-right">
+      <div class="account-badge" id="accountBadge">Signed in as <b id="accountName"></b></div>
+      <a class="pill-btn" href="/app.html">Console</a>
+    </div>
+  </nav>
+
+  <main class="wrap">
+
+    <!-- ------------------------------------------------ stage: set up ---- -->
+    <section class="stage" id="stage-setup">
+      <div class="hero-row">
+        <span class="mono eyebrow">New scan</span>
+        <h1>Pick the target. Pick the flaws.</h1>
+        <p class="sub">Tier 1 reads only what your browser already downloads, so it is open to you now. Tier 2 and Tier 3 stay locked until the domain is verified as yours.</p>
+      </div>
+
+      <div class="panels">
+        <div class="panel">
+          <div class="panel-head">The target</div>
+          <div class="panel-body">
+            <div class="field-row">
+              <label for="url">App URL</label>
+              <input id="url" type="text" placeholder="https://your-app.lovable.app" autocomplete="off" spellcheck="false"/>
+            </div>
+            <div class="picker" id="picker" hidden>
+              <div class="grp" id="targetGrp" hidden>
+                <span class="lbl">Websites from your console</span>
+                <div class="row" id="targetChips"></div>
+              </div>
+              <div class="grp" id="codeGrp" hidden>
+                <span class="lbl">Code from your console</span>
+                <div class="row" id="codeChips"></div>
+              </div>
+            </div>
+
+            <p class="note">Tier 1 reads the running app, so a URL is all it needs. Your code is attached in the console, and Salus uses it only from Tier 3 onward to locate a finding and open a pull request for the fix.</p>
+          </div>
+          <div class="runbar">
+            <span class="count"><b id="count">6</b> checks selected</span>
+            <button class="acid-btn" id="run" type="button">Run scan &rarr;</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">
+            <span>What to look for</span>
+            <span id="tierState">Tier 1 unlocked</span>
+          </div>
+
+          <div class="groups" id="groups">
+          <div class="group" data-tier="1">
+            <div class="group-head">
+              <span class="tier">Tier 01</span>
+              <span class="name">Passive scan</span>
+              <button class="group-all" type="button" data-all="1">Select all</button>
+              <span class="state">Open &middot; ~10s</span>
+            </div>
+
+            <label class="opt">
+              <input type="checkbox" data-flaw="exposed-keys" data-tier="1" checked/>
+              <div class="txt">
+                <span class="ttl">Exposed keys and secrets <span class="sev breach">Breach</span></span>
+                <p class="why">Service keys, database URLs and API tokens compiled straight into the JavaScript bundle, where anyone who opens devtools can read them.</p>
+                <span class="code">Bundle scan &middot; entropy and provider patterns</span>
+              </div>
+            </label>
+
+            <label class="opt">
+              <input type="checkbox" data-flaw="backend-defaults" data-tier="1" checked/>
+              <div class="txt">
+                <span class="ttl">Dangerous backend defaults <span class="sev breach">Breach</span></span>
+                <p class="why">Row-level security left switched off, anonymous read on tables that hold user rows, public storage buckets. The generator ships these on so the app works on the first try.</p>
+                <span class="code">Supabase and Firebase probe &middot; unauthenticated</span>
+              </div>
+            </label>
+
+            <label class="opt">
+              <input type="checkbox" data-flaw="source-maps" data-tier="1" checked/>
+              <div class="txt">
+                <span class="ttl">Shipped source maps <span class="sev high">High</span></span>
+                <p class="why">The production build serves the original source, so your server logic, comments and route names are readable to a visitor.</p>
+                <span class="code">Source map reachability &middot; public bytes only</span>
+              </div>
+            </label>
+
+            <label class="opt">
+              <input type="checkbox" data-flaw="admin-routes" data-tier="1" checked/>
+              <div class="txt">
+                <span class="ttl">Exposed admin and debug routes <span class="sev high">High</span></span>
+                <p class="why">Dashboards, seed endpoints and debug pages left reachable without a session, usually because the generator wired the UI guard but not the route.</p>
+                <span class="code">Route enumeration &middot; no credentials sent</span>
+              </div>
+            </label>
+
+            <label class="opt">
+              <input type="checkbox" data-flaw="headers" data-tier="1" checked/>
+              <div class="txt">
+                <span class="ttl">Missing security headers <span class="sev med">Medium</span></span>
+                <p class="why">No content security policy, permissive CORS, cookies without the flags that stop another site reading them.</p>
+                <span class="code">Response header audit</span>
+              </div>
+            </label>
+
+            <label class="opt">
+              <input type="checkbox" data-flaw="fingerprint" data-tier="1" checked/>
+              <div class="txt">
+                <span class="ttl">Generator fingerprint <span class="sev med">Context</span></span>
+                <p class="why">Works out which builder shipped the app, then runs that builder's known-failure playbook instead of a generic checklist.</p>
+                <span class="code">Lovable &middot; v0 &middot; Bolt &middot; Replit &middot; Cursor &middot; Base44</span>
+              </div>
+            </label>
+          </div>
+
+          <div class="group locked" data-tier="2">
+            <div class="group-head">
+              <span class="tier">Tier 02</span>
+              <span class="name">Authorized deep test</span>
+              <button class="group-all" type="button" data-all="2">Select all</button>
+              <span class="state">Needs domain verification</span>
+            </div>
+
+            <label class="opt locked">
+              <input type="checkbox" data-flaw="idor" data-tier="2" disabled/>
+              <div class="txt">
+                <span class="ttl">Cross-account record reads <span class="sev breach">Breach</span></span>
+                <p class="why">Salus signs in as both test accounts, maps the objects account A references, then replays those exact requests as account B. A record that comes back is a demonstrated leak, not an inference.</p>
+                <span class="code">IDOR sweep &middot; two test accounts required</span>
+              </div>
+            </label>
+
+            <label class="opt locked">
+              <input type="checkbox" data-flaw="function-access" data-tier="2" disabled/>
+              <div class="txt">
+                <span class="ttl">Privileged actions from a normal account <span class="sev breach">Breach</span></span>
+                <p class="why">Delete, refund, role change and export endpoints called with an ordinary session, to see whether the check lives on the server or only in the interface.</p>
+                <span class="code">Function-level access &middot; write actions on test rows</span>
+              </div>
+            </label>
+
+            <label class="opt locked">
+              <input type="checkbox" data-flaw="storage" data-tier="2" disabled/>
+              <div class="txt">
+                <span class="ttl">Unprotected file storage <span class="sev high">High</span></span>
+                <p class="why">Uploads reachable by guessing a path, and buckets that list their own contents to a stranger.</p>
+                <span class="code">Object path walk &middot; scoped to your bucket</span>
+              </div>
+            </label>
+
+            <label class="opt locked">
+              <input type="checkbox" data-flaw="auth-flow" data-tier="2" disabled/>
+              <div class="txt">
+                <span class="ttl">Session and password reset flaws <span class="sev high">High</span></span>
+                <p class="why">Tokens that survive a sign-out, reset links that work twice, and email changes that skip confirmation.</p>
+                <span class="code">Session replay &middot; test accounts only</span>
+              </div>
+            </label>
+          </div>
+
+          <div class="group locked" data-tier="3">
+            <div class="group-head">
+              <span class="tier">Tier 03</span>
+              <span class="name">Fix and re-test</span>
+              <button class="group-all" type="button" data-all="3">Select all</button>
+              <span class="state">Opt in per finding</span>
+            </div>
+
+            <label class="opt locked">
+              <input type="checkbox" data-flaw="agent-fix" data-tier="3" disabled/>
+              <div class="txt">
+                <span class="ttl">Patch the missing check <span class="sev med">Agent</span></span>
+                <p class="why">An agent writes the fix against your repository and opens it as a pull request. Nothing lands until you merge it.</p>
+                <span class="code">Pull request &middot; never a direct push</span>
+              </div>
+            </label>
+
+            <label class="opt locked">
+              <input type="checkbox" data-flaw="regression-guard" data-tier="3" disabled/>
+              <div class="txt">
+                <span class="ttl">Regression guard <span class="sev med">Required</span></span>
+                <p class="why">The original attack has to fail and account A has to keep its own access. One test out of two is a rollback, not a fix.</p>
+                <span class="code">2 independent re-tests &middot; both or nothing</span>
+              </div>
+            </label>
+          </div>
+          </div>
+        </div>
+      </div>
+
+      <p class="note">Only scan an app you own or are authorized to test. Salus logs every authorized run against the account that authorized it.</p>
+    </section>
+
+    <!-- ------------------------------------------------ stage: report ---- -->
+    <section class="stage" id="stage-results" hidden>
+      <div class="res-head">
+        <div>
+          <span class="mono eyebrow">Scan report</span>
+          <h1 id="res-title">Scan</h1>
+          <p class="sub" id="res-sub"></p>
+        </div>
+        <a class="pill-btn" href="/scanner.html">New scan</a>
+      </div>
+
+      <div class="tabs" role="tablist" aria-label="Report views">
+        <button class="tab" role="tab" id="tab-overview" aria-controls="p-overview" aria-selected="true">
+          Findings <span class="cnt" id="ov-count"></span>
+        </button>
+        <button class="tab" role="tab" id="tab-activity" aria-controls="p-activity" aria-selected="false">Agent activity</button>
+      </div>
+
+      <div class="res-grid">
+        <div>
+          <section class="tabpanel" id="p-overview" role="tabpanel" aria-labelledby="tab-overview">
+            <div id="findings-list"></div>
+          </section>
+          <section class="tabpanel" id="p-activity" role="tabpanel" aria-labelledby="tab-activity" hidden>
+            <div id="activity-list"></div>
+          </section>
+        </div>
+
+        <aside class="panel chat-panel" id="chat-panel">
+          <div class="panel-head"><span>Ask about these findings</span></div>
+          <div class="chat">
+            <div class="chat-ctx" id="chat-ctx"></div>
+            <div class="chat-log" id="chat-log" role="log" aria-live="polite" aria-label="Conversation"></div>
+            <form class="chat-form" id="chat-form">
+              <label class="sr" for="chat-input">Ask about the selected findings</label>
+              <input id="chat-input" type="text" placeholder="Why did this happen?" autocomplete="off"/>
+              <button class="acid-btn" type="submit">Ask</button>
+            </form>
+            <p class="chat-foot">Answers are read back from this scan's own record. Where Salus has not proven something, it says so rather than filling the gap.</p>
+          </div>
+        </aside>
+
+        <!-- Takes the chat panel's place while Agent activity is open. Editing
+             the code and asking about the report are different jobs, so they do
+             not share a surface. -->
+        <aside class="panel chat-panel" id="agent-panel" hidden>
+          <div class="panel-head"><span>Edit with agentic mode</span></div>
+          <div class="agentic">
+            <p class="agentic-lede" id="agentic-lede"></p>
+            <div class="edit-list" id="edit-list"></div>
+
+            <button class="acid-btn agentic-run" id="agent-run" type="button">Edit with agentic mode</button>
+
+            <div class="agent-progress" id="agent-progress" hidden>
+              <div class="ap-head">
+                <span class="lbl">Progress</span>
+                <span class="ap-count" id="ap-count"></span>
+              </div>
+              <ol class="ap-steps" id="ap-steps"></ol>
+            </div>
+
+            <div class="agent-out" id="agent-out" hidden>
+              <button class="acid-btn" id="agent-download" type="button">Download the patch</button>
+              <button class="pill-btn" id="agent-pr" type="button">Open a pull request</button>
+              <p class="chat-foot" id="agent-out-note"></p>
+            </div>
+
+            <p class="chat-foot">Salus writes files, never a push. Every change arrives as a patch you can read or a pull request you merge yourself.</p>
+          </div>
+        </aside>
+      </div>
+    </section>
+
+    <div class="msg" id="msg" role="status" aria-live="polite"></div>
+  </main>
+</div>
+
+<div class="overlay" id="overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+  <div class="modal">
+    <h2 id="modal-title">Before this scan runs.</h2>
+    <p class="modal-sub">Salus is about to send requests to the target below, from your account.</p>
+
+    <div class="terms">
+      <p>By running this scan you confirm that you own the application and repository being tested, or that you hold explicit authorization from the owner to test them.</p>
+      <p>Salus performs checks intended for software under your own control. Pointing it at a site or repository you do not own, and have no permission to test, may breach the Computer Fraud and Abuse Act and equivalent law elsewhere.</p>
+      <p>Verifying that authorization is yours to do before you continue. Salus records this run against your account and does not assume liability for a scan run without it.</p>
+    </div>
+
+    <div class="recap" id="recap"></div>
+
+    <div class="gate" id="gate">
+      <input type="checkbox" id="consent" aria-describedby="consent-label"/>
+      <label for="consent" id="consent-label">
+        <b>I own this application and repository, or I am authorized by the owner to test them.</b>
+        This run is logged against my account.
+      </label>
+    </div>
+
+    <div class="modal-actions">
+      <button class="pill-btn" id="cancel" type="button">Cancel</button>
+      <button class="acid-btn" id="confirm" type="button" aria-disabled="true">Agree and run scan</button>
+    </div>
+  </div>
+</div>
+
+<script src="/config.js"></script>
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fixableFindings, buildPatch, filesFor } from "/fixes.js";
+import { openPullRequest, pullRequestBody, parseRepo } from "/github.js";
+
+const cfg = window.SALUS_CONFIG;
+const $ = (id) => document.getElementById(id);
+
+if (cfg.SUPABASE_URL.includes("YOUR-PROJECT-REF")) {
+  document.body.innerHTML =
+    '<p style="color:#FFDFA8;font-family:sans-serif;padding:3rem;max-width:40rem">' +
+    "Set SUPABASE_URL in config.js before this page can check a session.</p>";
+  throw new Error("Supabase URL not configured");
+}
+
+const supabase = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+});
+
+/* Everything that reaches innerHTML passes through here first. A repository
+   name and an uploaded file name are both attacker-supplied strings on a page
+   that is holding a live session. */
+const esc = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+supabase.auth.onAuthStateChange((event, session) => {
+  if (session?.provider_token) sessionStorage.setItem("salus.provider_token", session.provider_token);
+  if (event === "SIGNED_OUT") location.replace("/signin.html");
+});
+
+const { data: { session } } = await supabase.auth.getSession();
+if (!session) {
+  location.replace("/signin.html");
+  throw new Error("redirecting to sign in");
+}
+
+const user = session.user;
+$("accountName").textContent =
+  user.user_metadata.user_name || user.user_metadata.full_name || user.email || "your account";
+$("accountBadge").classList.add("show");
+$("gated").classList.add("ready");
+
+/* ---- cursor glow ----
+   Eased toward the cursor on one animation frame at a time, so a burst of
+   pointer events cannot queue up more work than the display can show. */
+if (!matchMedia("(prefers-reduced-motion: reduce)").matches &&
+    matchMedia("(hover: hover) and (pointer: fine)").matches) {
+  const glow = $("glow");
+  let tx = innerWidth / 2, ty = innerHeight * 0.26, gx = tx, gy = ty, raf = null;
+  const follow = () => {
+    gx += (tx - gx) * 0.12;
+    gy += (ty - gy) * 0.12;
+    glow.style.transform = "translate3d(" + gx.toFixed(1) + "px," + gy.toFixed(1) + "px,0)";
+    raf = (Math.abs(tx - gx) > 0.5 || Math.abs(ty - gy) > 0.5) ? requestAnimationFrame(follow) : null;
+  };
+  addEventListener("pointermove", (e) => {
+    tx = e.clientX; ty = e.clientY;
+    if (!raf) raf = requestAnimationFrame(follow);
+  }, { passive: true });
+}
+
+/* ---- messages ---- */
+const msg = $("msg");
+function say(text, kind = "err", html = false) {
+  msg.className = "msg show " + kind;
+  if (html) msg.innerHTML = text; else msg.textContent = text;
+  msg.scrollIntoView({ block: "nearest", behavior: "smooth" });
+}
+function clearSay() { msg.className = "msg"; msg.textContent = ""; }
+
+/* PGRST205 is PostgREST reporting a table it cannot see, which on a project
+   this young means schema.sql has never been run. Worth naming exactly,
+   because otherwise it presents as a generic save failure. */
+const SCHEMA_MISSING = "PGRST205";
+function schemaHelp() {
+  say(
+    "The Salus tables do not exist in this Supabase project yet. Open the SQL editor for the project, " +
+    "paste the contents of <code>schema.sql</code> from this repository, and run it. Then reload this page.",
+    "warn", true
+  );
+}
+
+/* ---- targets carried over from the console ---- */
+const params = new URLSearchParams(location.search);
+
+// The landing page collects a URL before the visitor has an account. It parks
+// that URL on the sign-in redirect, and it arrives here once a session exists.
+const urlFromQuery = params.get("url");
+if (urlFromQuery) $("url").value = urlFromQuery;
+
+/* The scanner does not collect code. The console owns that, so this reads back
+   everything the console attached and lets this run pick from it. One scan row
+   holds one target and one code source, so these are choices, not a basket. */
+const fromQuery = params.get("repo");
+const stored = JSON.parse(sessionStorage.getItem("salus.sources") || "[]");
+
+const sites = stored.filter((s) => s.kind === "site");
+const codes = stored.filter((s) => s.kind !== "site");
+
+/* Only a repository or a clone URL names something a server can fetch. An
+   archive, a folder or a loose file exists solely in the tab that added it, so
+   recording one as the repo would point the run at something unreachable. */
+const REACHABLE = { repo: true, git: true };
+/* Which code source this run records. The chips above are the only visible
+   sign of it now; the panel that used to spell it out has gone, so this just
+   holds the value the scan row is written with. */
+const attached = { repo: null };
+
+function setCode(source) {
+  attached.repo = source && REACHABLE[source.kind]
+    ? (source.kind === "repo" ? "github.com/" + source.repo : source.label)
+    : null;
+}
+
+function chip(text, cls) {
+  const b = document.createElement("button");
+  b.type = "button";
+  b.className = "chip" + (cls ? " " + cls : "");
+  b.textContent = text;
+  b.title = text;
+  return b;
+}
+function selectOnly(row, btn) {
+  row.querySelectorAll(".chip").forEach((c) => c.classList.remove("on"));
+  btn.classList.add("on");
+}
+
+if (sites.length) {
+  const row = $("targetChips");
+  $("picker").hidden = false;
+  $("targetGrp").hidden = false;
+  sites.forEach((s) => {
+    const b = chip(s.detail && s.detail !== new URL(s.url).hostname ? s.detail + " · " + s.url : s.url);
+    b.addEventListener("click", () => {
+      selectOnly(row, b);
+      $("url").value = s.url;
+      clearSay();
+    });
+    row.appendChild(b);
+  });
+}
+
+if (codes.length) {
+  const row = $("codeChips");
+  $("picker").hidden = false;
+  $("codeGrp").hidden = false;
+  codes.forEach((s) => {
+    const reachable = !!REACHABLE[s.kind];
+    const b = chip(s.label, reachable ? "" : "off");
+    b.addEventListener("click", () => {
+      if (!reachable) {
+        return say(
+          s.label + " lives only in the browser tab that added it, so a server-side scan cannot open it. " +
+          "Attach a repository or a clone URL for the code side of a finding.",
+          "warn"
+        );
+      }
+      selectOnly(row, b);
+      setCode(s);
+      clearSay();
+    });
+    row.appendChild(b);
+  });
+}
+
+/* A repo in the query string named a specific one, so it wins the first pick.
+   Otherwise take the first source a scan could actually reach. */
+if (fromQuery) {
+  setCode({ kind: "repo", repo: fromQuery, label: "github.com/" + fromQuery });
+} else {
+  const firstReachable = codes.find((s) => REACHABLE[s.kind]);
+  setCode(firstReachable || codes[0] || null);
+  if (firstReachable) {
+    const i = codes.indexOf(firstReachable);
+    const b = $("codeChips").children[i];
+    if (b) b.classList.add("on");
+  }
+}
+
+// Only preselect a target when the field is still empty, so a URL carried in
+// from the landing page or typed by hand is never overwritten.
+if (sites.length && !$("url").value) {
+  $("url").value = sites[0].url;
+  $("targetChips").children[0]?.classList.add("on");
+}
+
+/* ---- flaw options ---- */
+const boxes = [...document.querySelectorAll('.opt input[type="checkbox"]')];
+
+function selected() {
+  return boxes.filter((b) => b.checked && !b.disabled).map((b) => b.dataset.flaw);
+}
+function syncCount() { $("count").textContent = selected().length; }
+boxes.forEach((b) => b.addEventListener("change", () => { syncCount(); clearSay(); }));
+syncCount();
+
+/* A locked option keeps its label clickable so the click can explain the lock,
+   rather than leaving a dead control with no reason attached to it. */
+document.querySelectorAll(".opt.locked").forEach((opt) => {
+  opt.addEventListener("click", (e) => {
+    e.preventDefault();
+    opt.classList.remove("nudge");
+    void opt.offsetWidth;
+    opt.classList.add("nudge");
+    const tier = opt.querySelector("input").dataset.tier;
+    say(
+      tier === "2"
+        ? "Tier 2 sends authenticated requests to your app, so it stays locked until you verify the domain and add two test accounts. Start that in the console."
+        : "Tier 3 patches your code, so it unlocks per finding after Tier 2 has proven one.",
+      "warn"
+    );
+  });
+});
+
+document.querySelectorAll(".group-all").forEach((btn) => {
+  const group = btn.closest(".group");
+  const inGroup = [...group.querySelectorAll('input[type="checkbox"]:not(:disabled)')];
+  /* The label tracks the live state of the group, so clearing the last box by
+     hand cannot leave the button still reading "clear all". */
+  const syncLabel = () => {
+    btn.textContent = inGroup.length && inGroup.every((b) => b.checked) ? "Clear all" : "Select all";
+  };
+  inGroup.forEach((b) => b.addEventListener("change", syncLabel));
+  btn.addEventListener("click", () => {
+    const turnOn = inGroup.some((b) => !b.checked);
+    inGroup.forEach((b) => { b.checked = turnOn; });
+    syncLabel();
+    syncCount();
+  });
+  syncLabel();
+});
+
+/* ---- ownership gate ---- */
+const overlay = $("overlay"), gate = $("gate"), consent = $("consent"), confirmBtn = $("confirm");
+let lastFocused = null;
+
+/* Accepts a bare host and normalizes it, since a founder pasting their app
+   rarely types the scheme. Anything that is still not a URL after that is a
+   typo worth catching before the modal, not after. */
+function readTarget() {
+  let raw = $("url").value.trim();
+  if (!raw) return null;
+  if (!/^https?:\/\//i.test(raw)) raw = "https://" + raw;
+  try {
+    const u = new URL(raw);
+    return u.hostname.includes(".") ? u.href : null;
+  } catch { return null; }
+}
+
+$("run").addEventListener("click", () => {
+  clearSay();
+  const target = readTarget();
+  if (!target) { $("url").focus(); return say("Enter the URL of the app you want scanned."); }
+  if (!selected().length) return say("Pick at least one check to run.");
+
+  $("recap").innerHTML =
+    '<div><span>Target</span><b>' + esc(target) + "</b></div>" +
+    '<div><span>Source</span><b>' + esc(attached.repo || "not provided") + "</b></div>" +
+    '<div><span>Checks</span><b>' + esc(selected().join(", ")) + "</b></div>";
+
+  lastFocused = document.activeElement;
+  overlay.classList.add("show");
+  consent.focus();
+});
+
+function syncGate() {
+  confirmBtn.setAttribute("aria-disabled", String(!consent.checked));
+  gate.classList.toggle("armed", consent.checked);
+  if (consent.checked) gate.classList.remove("nudge");
+}
+consent.addEventListener("change", syncGate);
+
+function closeModal() {
+  overlay.classList.remove("show");
+  consent.checked = false;
+  syncGate();
+  if (lastFocused) lastFocused.focus();
+}
+$("cancel").addEventListener("click", closeModal);
+overlay.addEventListener("click", (e) => { if (e.target === overlay) closeModal(); });
+
+/* A dialog that lets Tab wander onto the page behind it is not modal in any
+   sense a keyboard or screen reader user would recognise. */
+overlay.addEventListener("keydown", (e) => {
+  if (e.key !== "Tab") return;
+  const focusable = [...overlay.querySelectorAll("button, input, [href], [tabindex]:not([tabindex='-1'])")]
+    .filter((el) => !el.disabled && el.offsetParent !== null);
+  if (!focusable.length) return;
+  const first = focusable[0], last = focusable[focusable.length - 1];
+  if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+});
+addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && overlay.classList.contains("show")) closeModal();
+});
+
+/* ================================================================ report ==
+
+   One state object, and every render reads it fresh. The chat greeting in
+   particular is derived on each render rather than captured once, because the
+   selection it describes keeps changing after the panel first appears. */
+const state = {
+  scan: null,
+  findings: [],
+  selected: new Set(),
+  expanded: new Set(),
+  messages: [],
+};
+
+/* Falls back rather than throwing, so a severity the database gains later
+   cannot take the whole report down. */
+const SEV_CLASS = { breach: "breach", high: "high", medium: "med", context: "med" };
+const sevClass = (s) => SEV_CLASS[s] || "med";
+
+const STATUS_LABEL = {
+  queued: "queued", pending: "queued", running: "working",
+  done: "verified", failed: "failed", blocked: "could not run",
+};
+const statusChip = (s) =>
+  '<span class="status-chip ' + esc(s) + '"><span class="dot"></span>' +
+  esc(STATUS_LABEL[s] || s) + "</span>";
+
+const fmtDuration = (ms) => (ms < 1000 ? ms + "ms" : (ms / 1000).toFixed(1) + "s");
+
+/* ---- report tabs ---- */
+const tabs = [...document.querySelectorAll(".tab")];
+function showTab(id) {
+  tabs.forEach((t) => {
+    const on = t.id === id;
+    t.setAttribute("aria-selected", String(on));
+    t.tabIndex = on ? 0 : -1;
+    $(t.getAttribute("aria-controls")).hidden = !on;
+  });
+  // The chat answers questions about the report; agentic mode edits the code.
+  // They swap rather than stack, so the column never shows both.
+  const agentView = id === "tab-activity";
+  $("chat-panel").hidden = agentView;
+  $("agent-panel").hidden = !agentView;
+  if (agentView) renderEditList();
+}
+tabs.forEach((t) => t.addEventListener("click", () => showTab(t.id)));
+document.querySelector(".tabs").addEventListener("keydown", (e) => {
+  if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+  e.preventDefault();
+  const i = tabs.findIndex((t) => t.getAttribute("aria-selected") === "true");
+  const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+  showTab(next.id);
+  next.focus();
+});
+
+/* ---- header ---- */
+function renderHeader() {
+  const s = state.scan;
+  if (!s) return;
+  $("res-title").textContent = s.target_host;
+  const counts = state.findings.reduce((a, f) => (a[f.severity] = (a[f.severity] || 0) + 1, a), {});
+  /* Known severities lead, in order of how much they matter. Anything the
+     database gains later still gets counted rather than quietly dropped from
+     the total. */
+  const known = ["breach", "high", "medium", "context"];
+  const parts = known.concat(Object.keys(counts).filter((k) => !known.includes(k)))
+    .filter((k) => counts[k]).map((k) => counts[k] + " " + k);
+  $("res-sub").innerHTML =
+    statusChip(s.status) +
+    "<span>" + (parts.length ? esc(parts.join(", ")) : "no findings yet") + "</span>" +
+    '<span class="checks">' + esc(s.checks.join(" · ")) + "</span>";
+  $("ov-count").textContent = state.findings.length ? "· " + state.findings.length : "";
+}
+
+/* ---- findings ---- */
+function renderFindings() {
+  const host = $("findings-list");
+  if (!state.findings.length) { host.innerHTML = emptyReport(); return; }
+
+  host.innerHTML = state.findings.map((f) => {
+    const on = state.selected.has(f.id);
+    const open = state.expanded.has(f.id);
+    return (
+      '<article class="finding sev-' + esc(f.severity) + (on ? " on" : "") + '">' +
+        '<div class="finding-main">' +
+          '<input class="pick" type="checkbox" data-pick="' + esc(f.id) + '"' + (on ? " checked" : "") +
+            ' aria-label="Ask about ' + esc(f.title) + '"/>' +
+          '<div class="finding-body">' +
+            '<div class="finding-top">' +
+              '<span class="sev ' + sevClass(f.severity) + '">' + esc(f.severity) + "</span>" +
+              (f.status === "done" ? "" : statusChip(f.status)) +
+              '<span class="finding-loc">' + esc(f.locator) + "</span>" +
+            "</div>" +
+            "<h3>" + esc(f.title) + "</h3>" +
+            '<p class="blast">' + esc(f.blast) + "</p>" +
+            '<div class="meta">' +
+              (f.generator ? "<span>Built with " + esc(f.generator) + "</span>" : "") +
+              (f.affected != null ? "<span>" + f.affected.toLocaleString() + " users affected</span>" : "") +
+              '<button class="evidence-btn" type="button" data-evi="' + esc(f.id) + '" aria-expanded="' + open + '">' +
+                (open ? "hide evidence" : "how this was proven") +
+              "</button>" +
+            "</div>" +
+          "</div>" +
+        "</div>" +
+        (open
+          ? '<div class="evidence"><span class="lbl">How this was proven</span>' + esc(evidenceText(f)) + "</div>"
+          : "") +
+      "</article>"
+    );
+  }).join("");
+}
+
+/* A finding with no evidence has not been proven, and the report has to read
+   that way rather than borrowing the description as though it were proof. */
+function evidenceText(f) {
+  if (f.evidence) return f.evidence;
+  if (f.status === "blocked") return "This check could not be completed against the target, so nothing here is proven.";
+  if (f.status === "running") return "The check is still running. Evidence appears once it finishes.";
+  if (f.status === "failed") return "This check failed before it could prove anything.";
+  return "No evidence recorded yet.";
+}
+
+function emptyReport() {
+  const s = state.scan;
+  if (!s) return "";
+  if (s.status === "failed")
+    return '<div class="empty"><b>The scan failed.</b>' + esc(s.error || "No reason was recorded.") + "</div>";
+  if (s.status === "done")
+    return '<div class="empty"><b>Nothing found.</b>Every check you selected ran against ' + esc(s.target_host) +
+      " and none of them proved a flaw. That is a result, not an error.</div>";
+  return '<div class="empty"><b>Waiting on the engine.</b>The scan is recorded and your authorization is logged. ' +
+    "Findings appear here as the engine reports them. If nothing arrives, the <code>scan</code> edge function " +
+    "is most likely not deployed to this Supabase project yet.</div>";
+}
+
+/* ---- agent activity ---- */
+function renderActivity() {
+  const host = $("activity-list");
+  if (!state.findings.length) { host.innerHTML = emptyReport(); return; }
+
+  host.innerHTML = state.findings.map((f, i) => {
+    const steps = f.steps || [];
+    const doneCount = steps.filter((s) => s.state === "done").length;
+    const on = state.selected.has(f.id);
+    const line = f.status === "done" ? "var(--acid)"
+      : f.status === "running" ? "var(--amber)" : "var(--line-2)";
+    return (
+      '<div class="flow' + (on ? " on" : "") + (f.status === "pending" ? " is-pending" : "") + '">' +
+        '<div class="flow-top">' +
+          '<span class="sev ' + sevClass(f.severity) + '">' + esc(f.severity) + "</span>" +
+          statusChip(f.status) +
+          (f.duration_ms != null ? '<span class="when">' + fmtDuration(f.duration_ms) + "</span>" : "") +
+        "</div>" +
+        "<h3>" + esc(f.title) + "</h3>" +
+        '<div class="loc">' + esc(f.locator) + "</div>" +
+        '<p class="blast">' + esc(f.evidence || f.blast) + "</p>" +
+        '<div class="flow-stats">' +
+          (f.affected != null
+            ? '<div><div class="k">users affected</div><div class="v">' + f.affected.toLocaleString() + "</div></div>"
+            : "") +
+          (f.generator
+            ? '<div><div class="k">built with</div><div class="v">' + esc(f.generator) + "</div></div>"
+            : "") +
+          '<div><div class="k">steps done</div><div class="v">' + doneCount + " / " + steps.length + "</div></div>" +
+        "</div>" +
+        (steps.length
+          ? '<div class="steps">' + steps.map((s) =>
+              '<div class="step ' + esc(s.state) + '"><span class="bullet"></span>' +
+              '<span class="label">' + esc(s.label) + "</span></div>").join("") + "</div>"
+          : "") +
+      "</div>" +
+      (i < state.findings.length - 1
+        ? '<div class="connector"><svg width="16" height="22" viewBox="0 0 16 22" fill="none" aria-hidden="true">' +
+          '<line x1="8" y1="0" x2="8" y2="15" stroke="' + line + '" stroke-width="1.5"/>' +
+          '<path d="M3 12l5 6 5-6" stroke="' + line + '" stroke-width="1.5" fill="none" ' +
+          'stroke-linecap="round" stroke-linejoin="round"/></svg></div>'
+        : "")
+    );
+  }).join("");
+}
+
+/* ---- chat ---- */
+const contextFindings = () => state.findings.filter((f) => state.selected.has(f.id));
+
+/* ---- agentic mode ----
+   The generator is deterministic: the same finding always produces the same
+   files, and a finding Salus has not proven produces nothing at all. That is
+   why this can run in the page and still be honest about what it did. */
+const agent = {
+  fixes: [],          // every fix the current findings can produce
+  chosen: new Set(),  // fix keys the visitor ticked
+  built: null,        // { fixes, patch, files } once a run finishes
+  running: false,
+};
+
+function renderEditList() {
+  agent.fixes = fixableFindings(state.findings);
+  const host = $("edit-list");
+  const lede = $("agentic-lede");
+
+  if (!agent.fixes.length) {
+    const proven = state.findings.filter((f) => f.evidence).length;
+    lede.textContent = proven
+      ? "None of the proven findings here can be closed by a file change. Exposed keys and access-control flaws need a decision Salus will not make for you."
+      : "Nothing is proven yet, so there is nothing to edit. Salus only writes a patch against a finding it has demonstrated.";
+    host.innerHTML = "";
+    $("agent-run").disabled = true;
+    return;
+  }
+
+  // First run pre-selects everything, so the common case is one click.
+  if (!agent.chosen.size) agent.fixes.forEach((f) => agent.chosen.add(f.key));
+
+  lede.textContent = "These are the parts of your app Salus can edit. Pick what you want changed.";
+  host.innerHTML = agent.fixes.map((fix) => {
+    const on = agent.chosen.has(fix.key);
+    return (
+      '<label class="edit-item' + (on ? " on" : "") + '">' +
+        '<input type="checkbox" data-fix="' + esc(fix.key) + '"' + (on ? " checked" : "") + "/>" +
+        '<span class="ei-body">' +
+          '<b class="ei-title">' + esc(fix.title) + "</b>" +
+          '<span class="ei-why">' + esc(fix.summary) + "</span>" +
+          '<span class="ei-files">' + fix.files.map((f) => esc(f.path)).join("  ·  ") + "</span>" +
+          (fix.closes ? "" : '<span class="ei-why ei-open">Needs a step you have to finish by hand.</span>') +
+        "</span>" +
+      "</label>"
+    );
+  }).join("");
+
+  host.querySelectorAll("input[data-fix]").forEach((box) =>
+    box.addEventListener("change", () => {
+      if (box.checked) agent.chosen.add(box.dataset.fix);
+      else agent.chosen.delete(box.dataset.fix);
+      box.closest(".edit-item").classList.toggle("on", box.checked);
+      $("agent-run").disabled = agent.chosen.size === 0;
+    })
+  );
+  $("agent-run").disabled = agent.chosen.size === 0;
+}
+
+function paintSteps(steps) {
+  $("ap-steps").innerHTML = steps.map((s) =>
+    '<li class="' + s.state + '"><i></i><span>' + esc(s.label) + "</span></li>"
+  ).join("");
+  const done = steps.filter((s) => s.state === "done").length;
+  $("ap-count").textContent = done + " / " + steps.length;
+}
+
+$("agent-run").addEventListener("click", async () => {
+  if (agent.running) return;
+  const chosen = agent.fixes.filter((f) => agent.chosen.has(f.key));
+  if (!chosen.length) return;
+
+  agent.running = true;
+  const btn = $("agent-run");
+  btn.disabled = true;
+  btn.textContent = "Editing…";
+  $("agent-out").hidden = true;
+  $("agent-progress").hidden = false;
+
+  const steps = chosen.flatMap((fix) =>
+    fix.files.map((file) => ({ label: fix.title + " → " + file.path, state: "pending" }))
+  );
+  steps.push({ label: "Assemble the patch", state: "pending" });
+  paintSteps(steps);
+
+  // Paced so the work is legible rather than a flash. The files themselves are
+  // already generated; this is the writing being shown, not fake progress.
+  for (let i = 0; i < steps.length; i++) {
+    steps[i].state = "active";
+    paintSteps(steps);
+    await new Promise((r) => setTimeout(r, 260));
+    steps[i].state = "done";
+    paintSteps(steps);
+  }
+
+  const patch = buildPatch(chosen, state.scan);
+  agent.built = { fixes: chosen, patch, files: filesFor(chosen) };
+
+  const open = chosen.filter((f) => !f.closes).length;
+  $("agent-out-note").textContent = open
+    ? open + " of these need a step you have to finish by hand. The patch and the pull request both spell out which."
+    : "Read the patch before applying it. Salus has not touched your app.";
+  $("agent-out").hidden = false;
+
+  btn.textContent = "Edit with agentic mode";
+  btn.disabled = false;
+  agent.running = false;
+});
+
+$("agent-download").addEventListener("click", () => {
+  if (!agent.built) return;
+  const blob = new Blob([agent.built.patch], { type: "text/x-patch" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "salus-fixes-" + (state.scan?.target_host || "app").replace(/[^a-z0-9.-]/gi, "-") + ".patch";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  // Revoked on the next frame: revoking synchronously can cancel the download
+  // in some browsers before it has read the blob.
+  setTimeout(() => URL.revokeObjectURL(url), 0);
+  say("Patch downloaded. Apply it with git apply, read it first.", "ok");
+});
+
+$("agent-pr").addEventListener("click", async () => {
+  if (!agent.built) return;
+  const btn = $("agent-pr");
+  const repo = state.scan?.repo;
+  if (!repo || !parseRepo(repo)) {
+    return say("This scan has no GitHub repository attached, so there is nothing to open a pull request against. Attach one in the console and run the scan again.", "warn");
+  }
+  const token = sessionStorage.getItem("salus.provider_token");
+  if (!token) {
+    return say("No GitHub token is held. Sign in with GitHub again from the console, then come back.", "warn");
+  }
+
+  const target = parseRepo(repo);
+  if (!window.confirm("Open a pull request against " + target.owner + "/" + target.repo + "?\n\nSalus creates a new branch and opens a pull request. It never pushes to your default branch, and nothing lands until you merge.")) return;
+
+  btn.disabled = true;
+  const steps = [];
+  const note = $("agent-out-note");
+  try {
+    const pr = await openPullRequest({
+      token,
+      repo,
+      files: agent.built.files,
+      title: "Salus: close " + agent.built.fixes.length + " finding" + (agent.built.fixes.length === 1 ? "" : "s"),
+      body: pullRequestBody(agent.built.fixes, state.scan),
+      onStep: (m) => { steps.push(m); note.textContent = m; },
+    });
+    note.innerHTML = 'Pull request #' + pr.number + ' opened on branch <code>' + esc(pr.branch) + '</code>. Nothing is merged.';
+    say("Opened pull request #" + pr.number + ". Review and merge it yourself: " + pr.url, "ok");
+  } catch (err) {
+    note.textContent = "The pull request did not open.";
+    say("Could not open the pull request. " + err.message, "err");
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+function renderChat() {
+  const ctx = contextFindings();
+  $("chat-ctx").innerHTML = ctx.length
+    ? "Talking about " + ctx.map((f) => "<b>" + esc(f.title) + "</b>").join(", ")
+    : state.findings.length
+      ? "Tick a finding to ask about it, or ask a general question about this scan."
+      : "Nothing to talk about yet. Findings appear as the engine reports them.";
+
+  const greeting = ctx.length === 1
+    ? 'Ask me anything about "' + esc(ctx[0].title) + '".'
+    : ctx.length > 1
+      ? "Ask me anything about these " + ctx.length + " findings."
+      : "Ask about this scan, or tick a finding first.";
+
+  const log = $("chat-log");
+  log.innerHTML =
+    '<div class="bubble agent">' + greeting + "</div>" +
+    state.messages.map((m) => '<div class="bubble ' + esc(m.role) + '">' + esc(m.body) + "</div>").join("");
+  log.scrollTop = log.scrollHeight;
+}
+
+/* Answers are composed from stored columns only. Every branch either cites a
+   column that exists or says plainly that it is empty, because a security
+   report that invents an explanation is worse than one that admits a gap. */
+function answer(question, ctx) {
+  const q = question.toLowerCase();
+  if (!ctx.length) {
+    const n = state.findings.length;
+    if (!n) return "This scan has not recorded any findings yet, so there is nothing I can tell you about it.";
+    const breaches = state.findings.filter((f) => f.severity === "breach").length;
+    return "This scan recorded " + n + " finding" + (n === 1 ? "" : "s") + ", " + breaches +
+      " of them at breach level. Tick one on the left and ask again to get the detail on it.";
+  }
+  return ctx.map((f) => {
+    if (/prove|proof|evidence|sure|how do you know/.test(q)) return f.title + ": " + evidenceText(f);
+    if (/fix|patch|repair|solve|do about|remediat/.test(q)) {
+      const steps = (f.steps || []).map((s) => s.label);
+      return steps.length
+        ? f.title + ": the recorded plan is " + steps.join("; ") + "."
+        : f.title + ": no fix steps were recorded for this finding.";
+    }
+    if (/why|cause|happen/.test(q)) {
+      return f.title + ": " +
+        (f.generator ? "the target fingerprints as " + f.generator + ", and this is a default that builder ships enabled. " : "") +
+        f.blast;
+    }
+    if (/bad|serious|severity|risk|worry|urgent/.test(q)) return f.title + " is rated " + f.severity + ". " + f.blast;
+    return f.title + " (" + f.severity + ", " + f.locator + "): " + f.blast;
+  }).join("\n\n");
+}
+
+async function pushMessage(role, body) {
+  state.messages.push({ role, body });
+  renderChat();
+  if (!state.scan) return;
+  const { error } = await supabase.from("finding_messages").insert({
+    scan_id: state.scan.id,
+    user_id: user.id,
+    role,
+    body,
+    context_ids: [...state.selected],
+  });
+  if (error) {
+    if (error.code === SCHEMA_MISSING) schemaHelp();
+    else say("That answer could not be saved to the scan record. " + error.message);
+  }
+}
+
+$("chat-form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = $("chat-input");
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  const ctx = contextFindings();
+  await pushMessage("user", text);
+  await pushMessage("agent", answer(text, ctx));
+});
+
+/* Delegated, so re-rendering the list cannot orphan a listener. */
+$("stage-results").addEventListener("click", (e) => {
+  const pick = e.target.closest("[data-pick]");
+  if (pick) {
+    const id = pick.dataset.pick;
+    if (state.selected.has(id)) state.selected.delete(id); else state.selected.add(id);
+    renderFindings();
+    renderActivity();
+    renderChat();
+    return;
+  }
+  const evi = e.target.closest("[data-evi]");
+  if (evi) {
+    const id = evi.dataset.evi;
+    if (state.expanded.has(id)) state.expanded.delete(id); else state.expanded.add(id);
+    renderFindings();
+  }
+});
+
+function renderAll() {
+  renderHeader();
+  renderFindings();
+  renderActivity();
+  renderChat();
+}
+
+/* ---- loading a scan ---- */
+async function loadScan(scanId) {
+  const { data: scan, error } = await supabase.from("scans").select("*").eq("id", scanId).single();
+  if (error) {
+    if (error.code === SCHEMA_MISSING) return schemaHelp();
+    return say("Could not load that scan. " + error.message);
+  }
+  state.scan = scan;
+
+  const { data: findings } = await supabase
+    .from("findings").select("*").eq("scan_id", scanId).order("position");
+  state.findings = findings || [];
+
+  if (state.findings.length) {
+    const { data: steps } = await supabase
+      .from("finding_steps").select("*")
+      .in("finding_id", state.findings.map((f) => f.id))
+      .order("position");
+    const byFinding = {};
+    (steps || []).forEach((s) => (byFinding[s.finding_id] ||= []).push(s));
+    state.findings.forEach((f) => { f.steps = byFinding[f.id] || []; });
+    /* Open on the worst finding rather than on nothing, so the chat panel has
+       a subject the moment the report appears. */
+    if (!state.selected.size) {
+      const worst = state.findings.find((f) => f.severity === "breach") || state.findings[0];
+      state.selected.add(worst.id);
+    }
+  }
+
+  const { data: messages } = await supabase
+    .from("finding_messages").select("*").eq("scan_id", scanId).order("created_at");
+  state.messages = messages || [];
+
+  $("stage-setup").hidden = true;
+  $("stage-results").hidden = false;
+  renderAll();
+  watch(scanId);
+}
+
+/* ---- realtime ---- */
+let channel = null;
+function watch(scanId) {
+  if (channel) supabase.removeChannel(channel);
+  channel = supabase.channel("scan:" + scanId)
+    .on("postgres_changes",
+      { event: "*", schema: "public", table: "scans", filter: "id=eq." + scanId },
+      (p) => { state.scan = p.new; renderHeader(); renderFindings(); renderActivity(); })
+    .on("postgres_changes",
+      { event: "*", schema: "public", table: "findings", filter: "scan_id=eq." + scanId },
+      (p) => {
+        if (p.eventType === "DELETE") {
+          state.findings = state.findings.filter((f) => f.id !== p.old.id);
+          state.selected.delete(p.old.id);
+          state.expanded.delete(p.old.id);
+        } else {
+          const i = state.findings.findIndex((f) => f.id === p.new.id);
+          /* Carry the steps already held. The findings payload does not include
+             them, and replacing the row wholesale would blank a filled-in trail. */
+          if (i === -1) state.findings.push({ ...p.new, steps: [] });
+          else state.findings[i] = { ...p.new, steps: state.findings[i].steps || [] };
+          state.findings.sort((a, b) => a.position - b.position);
+        }
+        renderAll();
+      })
+    .on("postgres_changes",
+      { event: "*", schema: "public", table: "finding_steps" },
+      (p) => {
+        const row = p.new || p.old;
+        const f = state.findings.find((x) => x.id === row.finding_id);
+        if (!f) return;
+        f.steps = f.steps || [];
+        const i = f.steps.findIndex((s) => s.id === row.id);
+        if (p.eventType === "DELETE") { if (i > -1) f.steps.splice(i, 1); }
+        else if (i === -1) f.steps.push(p.new);
+        else f.steps[i] = p.new;
+        f.steps.sort((a, b) => a.position - b.position);
+        renderActivity();
+      })
+    .subscribe();
+}
+
+/* ---- starting a scan ---- */
+confirmBtn.addEventListener("click", async () => {
+  if (!consent.checked) {
+    gate.classList.remove("nudge");
+    void gate.offsetWidth;
+    gate.classList.add("nudge");
+    return;
+  }
+
+  // Re-read rather than trust the modal: the target can be edited or cleared
+  // after the recap was rendered, and queueing a run against a null target
+  // records an authorization that points at nothing.
+  const target = readTarget();
+  if (!target) {
+    closeModal();
+    $("url").focus();
+    return say("Enter the URL of the app you want scanned.");
+  }
+
+  confirmBtn.disabled = true;
+  confirmBtn.textContent = "Recording authorization…";
+
+  const { data: scan, error } = await supabase.from("scans").insert({
+    user_id: user.id,
+    target_url: target,
+    target_host: new URL(target).hostname,
+    repo: attached.repo,
+    // The scanner no longer accepts an upload. The console holds sources, and
+    // nothing it holds can be sent from here, so this stays honest at null.
+    upload_name: null,
+    checks: selected(),
+  }).select().single();
+
+  confirmBtn.disabled = false;
+  confirmBtn.textContent = "Agree and run scan";
+
+  if (error) {
+    closeModal();
+    return error.code === SCHEMA_MISSING ? schemaHelp() : say("Could not start the scan. " + error.message);
+  }
+
+  closeModal();
+  clearSay();
+  history.replaceState(null, "", "?scan=" + scan.id);
+  await loadScan(scan.id);
+
+  /* The engine runs server side because a browser cannot read a cross-origin
+     response at all. A missing function is reported as itself rather than
+     left to look like a scan that found nothing. */
+  const { error: fnError } = await supabase.functions.invoke("scan", { body: { scan_id: scan.id } });
+  if (fnError) {
+    say(
+      "The scan is recorded and your authorization is logged, but the engine did not answer: " +
+      fnError.message + ". Deploy it with: supabase functions deploy scan",
+      "warn"
+    );
+  }
+});
+
+/* ---- entry ---- */
+if (params.get("scan")) await loadScan(params.get("scan"));
+</script>
+</body>
+</html>

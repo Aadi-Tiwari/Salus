@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="en" data-motion="on">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Sign in to SALUS</title>
+<meta name="robots" content="noindex"/>
+<link rel="preconnect" href="https://api.fontshare.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&f[]=switzer@400,500,600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%2307090A'/%3E%3Ccircle cx='10.5' cy='10.5' r='6.2' fill='none' stroke='%23D7FF3E' stroke-width='2'/%3E%3Cpath d='M15.3 15.3 L20.4 20.4' stroke='%23D7FF3E' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E"/>
+<link rel="stylesheet" href="/auth.css"/>
+<style>
+.shell{position:relative;z-index:2;display:flex;justify-content:center;padding:2rem 1.25rem 5rem}
+.card{
+  width:100%;max-width:452px;background:var(--card);border:1px solid var(--line);
+  border-radius:var(--r-lg);padding:2.4rem 2.2rem 2rem;
+  box-shadow:0 40px 90px -50px #000;
+}
+.card h1{font-size:1.9rem;margin-bottom:.6rem}
+.card .sub{color:var(--txt-dim);font-size:.95rem;margin:0 0 1.8rem}
+.eyebrow{display:block;color:var(--acid);margin-bottom:1rem}
+
+/* gate */
+.gate{
+  display:flex;gap:.75rem;align-items:flex-start;padding:1rem 1.1rem;margin-bottom:1.4rem;
+  border:1px solid var(--line);border-radius:var(--r-sm);background:#dfe7ea08;
+  transition:border-color 220ms ease,background 220ms ease;
+}
+.gate.armed{border-color:#d7ff3e59;background:#d7ff3e0f}
+.gate.nudge{border-color:var(--breach);animation:shake 320ms var(--ease-out)}
+@keyframes shake{0%,100%{transform:translateX(0)}25%{transform:translateX(-5px)}75%{transform:translateX(5px)}}
+.gate input{
+  appearance:none;flex:none;width:19px;height:19px;margin:2px 0 0;border-radius:6px;
+  border:1.5px solid var(--line-2);background:transparent;cursor:pointer;
+  display:grid;place-content:center;transition:background 160ms ease,border-color 160ms ease;
+}
+.gate input::before{
+  content:"";width:10px;height:10px;transform:scale(0);transition:transform 140ms var(--ease-out);
+  background:var(--ink);clip-path:polygon(14% 44%,0 60%,40% 100%,100% 18%,84% 4%,38% 68%);
+}
+.gate input:checked{background:var(--acid);border-color:var(--acid)}
+.gate input:checked::before{transform:scale(1)}
+.gate label{font-size:.87rem;color:var(--txt-dim);cursor:pointer;line-height:1.55}
+.gate label b{color:var(--txt);font-weight:500}
+.gate a{color:var(--acid);text-decoration:underline;text-underline-offset:2px}
+
+/* oauth */
+.oauth{display:grid;gap:.6rem;margin-bottom:1.4rem}
+.oauth-btn{
+  display:flex;align-items:center;justify-content:center;gap:.7rem;width:100%;
+  padding:.8rem 1.2rem;border:1px solid var(--line);border-radius:999px;
+  background:#dfe7ea05;color:var(--txt);font-size:.95rem;font-family:var(--font-body);
+  transition:border-color 200ms ease,background 200ms ease,transform 160ms var(--ease-out);
+}
+.oauth-btn:active:not(:disabled){transform:scale(.97);transition-duration:100ms}
+.oauth-btn svg{flex:none}
+.oauth-btn[data-unavailable]{opacity:.55}
+.oauth-btn[data-unavailable]::after{
+  content:"Not enabled";margin-left:.5rem;font-family:var(--font-mono);
+  font-size:.6rem;letter-spacing:.1em;color:var(--txt-faint);white-space:nowrap;
+  border:1px solid var(--line);border-radius:5px;padding:.15rem .4rem;
+}
+/* the badge wraps the label and mismatches button heights on narrow screens;
+   clicking still explains why the provider is off */
+@media(max-width:430px){.oauth-btn[data-unavailable]::after{display:none}}
+
+.divider{display:flex;align-items:center;gap:.9rem;margin:1.4rem 0;color:var(--txt-faint)}
+.divider::before,.divider::after{content:"";height:1px;flex:1;background:var(--line)}
+
+.field-row{display:grid;gap:.4rem;margin-bottom:.9rem}
+.field-row label{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.14em;color:var(--txt-dim)}
+.field-row input{
+  width:100%;padding:.8rem .95rem;border:1px solid var(--line);border-radius:12px;
+  background:#07090a80;color:var(--txt);font-family:var(--font-mono);font-size:.9rem;outline:none;
+  transition:border-color 200ms ease,box-shadow 200ms ease;
+}
+.field-row input::placeholder{color:var(--txt-faint)}
+.field-row input:focus{border-color:#d7ff3e8c;box-shadow:0 0 0 4px #d7ff3e14}
+.submit{width:100%;margin-top:.5rem}
+
+.msg{
+  display:none;margin-top:1.1rem;padding:.8rem 1rem;border-radius:12px;font-size:.87rem;
+  border:1px solid;line-height:1.5;
+}
+.msg.show{display:block}
+.msg.err{border-color:#ff4a3247;background:#ff4a3214;color:#FFC2B7}
+.msg.ok{border-color:#d7ff3e42;background:#d7ff3e12;color:#EAFFAC}
+.msg.warn{border-color:#ffae2b47;background:#ffae2b12;color:#FFDFA8}
+.msg code{font-family:var(--font-mono);font-size:.82em;color:var(--txt)}
+
+.swap{margin-top:1.5rem;text-align:center;font-size:.88rem;color:var(--txt-dim)}
+.swap button{background:none;border:0;color:var(--acid);font-size:inherit;padding:0;text-decoration:underline;text-underline-offset:3px}
+.foot-note{max-width:452px;margin:1.4rem auto 0;text-align:center;color:var(--txt-faint);font-size:.76rem;line-height:1.6}
+</style>
+</head>
+<body>
+
+<div class="field" aria-hidden="true">
+  <div class="grid"></div>
+  <span class="aurora au-1"></span><span class="aurora au-2"></span>
+  <div class="vignette"></div>
+</div>
+
+<nav class="auth-nav">
+  <a class="nav-logo" href="/" aria-label="Salus, home">
+    SALUS
+    <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="10.5" cy="10.5" r="6.4" fill="none" stroke="var(--acid)" stroke-width="1.9"/>
+      <path d="M15.3 15.3 L20.4 20.4" stroke="var(--acid)" stroke-width="2.3" stroke-linecap="round"/>
+      <path d="M7.7 10.6 L9.8 12.7 L13.5 8.6" fill="none" stroke="var(--acid)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </a>
+  <a class="nav-back" href="/">&larr; Back to site</a>
+</nav>
+
+<main class="shell">
+  <div class="card">
+    <span class="mono eyebrow" id="eyebrow">Sign in</span>
+    <h1 id="title">Prove the app is yours.</h1>
+    <p class="sub" id="subtitle">Salus only ever runs against software you own. Connect the accounts that prove it.</p>
+
+    <div class="msg warn" id="setup">
+      <b>Not configured yet.</b> Set <code>SUPABASE_URL</code> in <code>config.js</code> to your project URL before sign-in will work.
+    </div>
+
+    <div class="gate" id="gate">
+      <input type="checkbox" id="consent" aria-describedby="consent-label"/>
+      <label for="consent" id="consent-label">
+        <b>I own, or am authorized to test, every application I connect to Salus.</b>
+        I accept the <a href="#" target="_blank" rel="noopener">Terms</a> and the
+        <a href="#" target="_blank" rel="noopener">Responsible Use policy</a>.
+      </label>
+    </div>
+
+    <div class="oauth">
+      <button class="oauth-btn" id="btn-google" aria-disabled="true">
+        <svg width="17" height="17" viewBox="0 0 48 48" aria-hidden="true">
+          <path fill="#FFC107" d="M43.6 20.1H42V20H24v8h11.3C33.7 32.7 29.2 36 24 36c-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 13 4 4 13 4 24s9 20 20 20 20-9 20-20c0-1.3-.1-2.6-.4-3.9z"/>
+          <path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.7 15.1 19 12 24 12c3.1 0 5.8 1.2 7.9 3.1l5.7-5.7C34 6.1 29.3 4 24 4 16.3 4 9.7 8.3 6.3 14.7z"/>
+          <path fill="#4CAF50" d="M24 44c5.2 0 9.8-2 13.3-5.2l-6.2-5.2C29.1 35.1 26.7 36 24 36c-5.2 0-9.6-3.3-11.3-7.9l-6.5 5C9.6 39.6 16.2 44 24 44z"/>
+          <path fill="#1976D2" d="M43.6 20.1H42V20H24v8h11.3c-.8 2.2-2.2 4.2-4.2 5.6l6.2 5.2C36.9 40.2 44 35 44 24c0-1.3-.1-2.6-.4-3.9z"/>
+        </svg>
+        Continue with Google
+      </button>
+      <button class="oauth-btn" id="btn-github" aria-disabled="true">
+        <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/>
+        </svg>
+        Continue with GitHub
+      </button>
+    </div>
+
+    <div class="divider"><span class="mono">Or use email</span></div>
+
+    <form id="form" novalidate>
+      <div class="field-row">
+        <label for="email">Email</label>
+        <input type="email" id="email" placeholder="you@company.com" autocomplete="email" required/>
+      </div>
+      <div class="field-row">
+        <label for="password">Password</label>
+        <input type="password" id="password" placeholder="at least 8 characters" autocomplete="current-password" required minlength="8"/>
+      </div>
+      <button class="acid-btn submit" id="submit" type="submit" aria-disabled="true">Sign in</button>
+    </form>
+
+    <div class="msg" id="msg" role="status" aria-live="polite"></div>
+
+    <p class="swap" id="swap">
+      <span id="swap-text">No account yet?</span>
+      <button type="button" id="swap-btn">Create one</button>
+    </p>
+  </div>
+</main>
+
+<p class="foot-note">
+  Salus requests GitHub repository access so it can read the code behind a finding and open a pull request.
+  It never pushes to your repository without you merging.
+</p>
+
+<script src="/config.js"></script>
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const cfg = window.SALUS_CONFIG;
+const configured = !cfg.SUPABASE_URL.includes("YOUR-PROJECT-REF");
+
+const $ = (id) => document.getElementById(id);
+const consent = $("consent"), gate = $("gate"), msg = $("msg");
+
+/* Where to land after signing in. A caller can ask for somewhere other than
+   the console with ?next=, which is how the landing page hands a typed URL
+   through to the scanner. Only same-origin paths are honoured: anything
+   starting with "//" or a scheme is an open redirect waiting to happen, and
+   this is a security product. */
+const destination = (() => {
+  const asked = new URLSearchParams(location.search).get("next");
+  if (asked && asked.startsWith("/") && !asked.startsWith("//")) return asked;
+  return cfg.AFTER_SIGNIN;
+})();
+const destinationURL = () => new URL(destination, location.origin).href;
+const btnGoogle = $("btn-google"), btnGithub = $("btn-github"), submit = $("submit");
+let mode = "signin";
+
+if (!configured) $("setup").classList.add("show");
+
+const supabase = configured
+  ? createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY, {
+      auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+    })
+  : null;
+
+function say(text, kind = "err") {
+  msg.className = "msg show " + kind;
+  msg.textContent = text;
+}
+function clearSay() { msg.className = "msg"; msg.textContent = ""; }
+
+/* The checkbox gates all three sign-in routes, not just the email form.
+   These use aria-disabled rather than the disabled attribute: a disabled
+   button swallows the click, so the user gets a dead control and no reason
+   for it. Keeping it clickable lets us say what is missing. */
+function syncGate() {
+  const ok = consent.checked && configured;
+  [btnGoogle, btnGithub, submit].forEach((b) => b.setAttribute("aria-disabled", String(!ok)));
+  gate.classList.toggle("armed", consent.checked);
+  if (consent.checked) gate.classList.remove("nudge");
+}
+consent.addEventListener("change", syncGate);
+syncGate();
+
+/* Returns true when the click should be refused, and explains why. */
+function blocked() {
+  if (!configured) {
+    say("Set SUPABASE_URL in config.js before sign-in will work.", "warn");
+    return true;
+  }
+  if (!consent.checked) {
+    gate.classList.remove("nudge");
+    void gate.offsetWidth;
+    gate.classList.add("nudge");
+    consent.focus();
+    say("Confirm you own the application before signing in.", "err");
+    return true;
+  }
+  return false;
+}
+
+/* Ask the project which providers are actually turned on. Without this,
+   signInWithOAuth navigates away before it can return an error, and a disabled
+   provider strands the user on a raw JSON 400 page with no way back. */
+const providersReady = !configured
+  ? Promise.resolve(null)
+  : fetch(cfg.SUPABASE_URL + "/auth/v1/settings", { headers: { apikey: cfg.SUPABASE_PUBLISHABLE_KEY } })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((s) => {
+        const ext = s && s.external;
+        if (ext) {
+          [["google", btnGoogle], ["github", btnGithub]].forEach(([name, btn]) => {
+            if (!ext[name]) btn.dataset.unavailable = "1";
+          });
+        }
+        return ext;
+      })
+      .catch(() => null);
+
+async function oauth(provider) {
+  if (blocked()) return;
+  // Await the check rather than reading a variable that may not be filled yet.
+  const ext = await providersReady;
+  if (ext && !ext[provider]) {
+    const label = provider.charAt(0).toUpperCase() + provider.slice(1);
+    return say(label + " sign-in is not switched on for this project yet. Enable it in Supabase under Authentication, Providers.", "warn");
+  }
+  clearSay();
+  const options = { redirectTo: destinationURL() };
+  if (provider === "github") options.scopes = cfg.GITHUB_SCOPES;
+  const { error } = await supabase.auth.signInWithOAuth({ provider, options });
+  if (error) say(error.message);
+}
+btnGoogle.addEventListener("click", () => oauth("google"));
+btnGithub.addEventListener("click", () => oauth("github"));
+
+$("swap-btn").addEventListener("click", () => {
+  mode = mode === "signin" ? "signup" : "signin";
+  const signin = mode === "signin";
+  $("eyebrow").textContent = signin ? "Sign in" : "Create account";
+  $("title").textContent = signin ? "Prove the app is yours." : "Create your Salus account.";
+  $("subtitle").textContent = signin
+    ? "Salus only ever runs against software you own. Connect the accounts that prove it."
+    : "One account, then verify the domains you want Salus to test.";
+  submit.textContent = signin ? "Sign in" : "Create account";
+  $("swap-text").textContent = signin ? "No account yet?" : "Already have an account?";
+  $("swap-btn").textContent = signin ? "Create one" : "Sign in";
+  $("password").autocomplete = signin ? "current-password" : "new-password";
+  clearSay();
+});
+
+$("form").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  if (blocked() || submit.disabled) return;
+  const email = $("email").value.trim();
+  const password = $("password").value;
+  if (!email || !password) return say("Enter an email address and a password.");
+  if (password.length < 8) return say("Passwords need at least 8 characters.");
+
+  submit.disabled = true;
+  const label = submit.textContent;
+  submit.textContent = mode === "signin" ? "Signing in…" : "Creating…";
+
+  const { data, error } =
+    mode === "signin"
+      ? await supabase.auth.signInWithPassword({ email, password })
+      : await supabase.auth.signUp({
+          email,
+          password,
+          options: { emailRedirectTo: destinationURL() },
+        });
+
+  submit.textContent = label;
+  submit.disabled = false;
+
+  if (error) return say(error.message);
+  if (mode === "signup" && !data.session) {
+    return say("Check your inbox and confirm the address to finish signing up.", "ok");
+  }
+  location.href = destination;
+});
+
+/* A GitHub OAuth token arrives once, on the SIGNED_IN event, and Supabase does
+   not persist it. Capture it here or it is gone after the next refresh. */
+if (supabase) {
+  supabase.auth.onAuthStateChange((event, session) => {
+    if (event === "SIGNED_IN" && session?.provider_token) {
+      sessionStorage.setItem("salus.provider_token", session.provider_token);
+      sessionStorage.setItem("salus.provider", session.user.app_metadata.provider || "");
+    }
+  });
+  supabase.auth.getSession().then(({ data }) => {
+    if (data.session) showSignedIn(data.session);
+  });
+
+  /* An existing session used to silently redirect to the app, so a signed-in
+     visitor never saw this page. Instead show a clear "already signed in" state
+     with a way to continue or to sign out and reach the form. */
+  function showSignedIn(session) {
+    const email = (session.user && session.user.email) || "your account";
+    ["gate", "form", "swap"].forEach((id) => { const el = $(id); if (el) el.style.display = "none"; });
+    document.querySelectorAll(".oauth, .divider, #setup").forEach((el) => { el.style.display = "none"; });
+
+    const panel = document.createElement("div");
+    panel.className = "gate";
+    panel.style.display = "block";
+
+    const p = document.createElement("p");
+    p.style.cssText = "margin:0 0 1.1rem;line-height:1.55";
+    p.append("You are already signed in as ");
+    const b = document.createElement("b"); b.textContent = email; p.append(b);
+    p.append(". Salus kept your session, so it skipped the form. Continue, or sign out to use a different account.");
+
+    const go = document.createElement("button");
+    go.className = "acid-btn"; go.type = "button"; go.textContent = "Continue to Salus";
+    go.style.cssText = "width:100%;margin-bottom:.6rem";
+    go.addEventListener("click", () => { location.href = destination; });
+
+    const out = document.createElement("button");
+    out.className = "oauth-btn"; out.type = "button"; out.textContent = "Sign out";
+    out.style.cssText = "width:100%";
+    out.addEventListener("click", async () => {
+      out.textContent = "Signing out..."; out.setAttribute("aria-disabled", "true");
+      try { await supabase.auth.signOut(); } finally { location.reload(); }
+    });
+
+    panel.append(p, go, out);
+    $("subtitle").insertAdjacentElement("afterend", panel);
+  }
+}
+</script>
+</body>
+</html>

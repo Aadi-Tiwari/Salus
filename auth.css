@@ -1,0 +1,137 @@
+/* Shared shell for the Salus authenticated pages. */
+:root{
+  --ink:#07090A;
+  --ink-2:#0C1012;
+  --card:#0E1214;
+  --paper:#E9EEF0;
+  --acid:#D7FF3E;
+  --breach:#FF4A32;
+  --amber:#FFAE2B;
+  --txt:#DFE7EA;
+  --txt-dim:#DFE7EA94;
+  --txt-faint:#DFE7EA57;
+  --line:#DFE7EA1f;
+  --line-2:#DFE7EA3d;
+  --r-lg:32px;
+  --r-md:22px;
+  --r-sm:16px;
+  --font-display:"General Sans","Helvetica Neue",sans-serif;
+  --font-body:"Switzer","Helvetica Neue",sans-serif;
+  --font-mono:"JetBrains Mono","SF Mono",ui-monospace,monospace;
+  --bounce:cubic-bezier(.2,.9,.3,1.3);
+  --ease-out:cubic-bezier(.23,1,.32,1);
+  --ease-in-out:cubic-bezier(.77,0,.175,1);
+}
+*{box-sizing:border-box}
+h1,h2,h3{font-family:var(--font-display);font-weight:500;letter-spacing:-.022em;line-height:1.08;margin:0}
+body{
+  margin:0;min-height:100svh;background:var(--ink);color:var(--txt);
+  font-family:var(--font-body);font-size:16px;line-height:1.6;
+  -webkit-font-smoothing:antialiased;overflow-x:hidden;
+}
+/* Grain sits under the content rather than blended over the whole document.
+   As a blended top layer it forced the compositor to re-blend every pixel of
+   the viewport on every frame that anything underneath moved. */
+body::after{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='300' height='300' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+}
+a{color:inherit;text-decoration:none}
+button{font:inherit;cursor:pointer}
+::selection{background:var(--acid);color:var(--ink)}
+:focus-visible{outline:2px solid var(--acid);outline-offset:3px;border-radius:8px}
+.mono{font-family:var(--font-mono);letter-spacing:.12em;font-size:.7rem}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* background field, matching the landing page */
+.field{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;background:var(--ink)}
+.field .grid{
+  position:absolute;inset:-80px;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:72px 72px;opacity:.38;
+  mask-image:radial-gradient(130% 100% at 50% 0%,#000 10%,#0009 55%,transparent 92%);
+  -webkit-mask-image:radial-gradient(130% 100% at 50% 0%,#000 10%,#0009 55%,transparent 92%);
+  animation:gridDrift 26s linear infinite;will-change:transform;
+}
+@keyframes gridDrift{from{transform:translate3d(0,0,0)}to{transform:translate3d(-72px,-72px,0)}}
+/* Painted as radial gradients rather than solid circles behind blur(120px).
+   A 120px blur over a 660px layer is a large convolution, and scaling it threw
+   the cached blur away and re-rasterised it on every frame. A gradient needs no
+   filter and animates as a pure composited translate. */
+.aurora{position:absolute;border-radius:50%;will-change:transform}
+.au-1{
+  width:900px;height:900px;top:-32%;left:-10%;
+  background:radial-gradient(circle,#d7ff3e26 0%,#d7ff3e12 38%,transparent 68%);
+  animation:drift1 24s linear infinite;
+}
+.au-2{
+  width:820px;height:820px;top:30%;right:-18%;
+  background:radial-gradient(circle,#ff4a3220 0%,#ff4a320e 40%,transparent 70%);
+  animation:drift2 29s linear infinite;
+}
+/* Eight stops rather than two, so each blob wanders a closed loop instead of
+   sliding to one point and back. Linear timing keeps it continuous. */
+@keyframes drift1{
+  0%,100%{transform:translate3d(0,0,0) scale(1)}
+  12.5%{transform:translate3d(165px,55px,0) scale(1.056)}
+  25%   {transform:translate3d(300px,154px,0) scale(1.14)}
+  37.5% {transform:translate3d(210px,220px,0) scale(1.098)}
+  50%   {transform:translate3d(30px,198px,0) scale(1)}
+  62.5% {transform:translate3d(-150px,165px,0) scale(.93)}
+  75%   {transform:translate3d(-225px,66px,0) scale(.958)}
+  87.5% {transform:translate3d(-105px,-44px,0) scale(1)}
+}
+@keyframes drift2{
+  0%,100%{transform:translate3d(0,0,0) scale(1)}
+  12.5%{transform:translate3d(-102px,-144px,0) scale(1.072)}
+  25%   {transform:translate3d(-272px,-240px,0) scale(1.12)}
+  37.5% {transform:translate3d(-340px,-120px,0) scale(1.06)}
+  50%   {transform:translate3d(-289px,36px,0) scale(1)}
+  62.5% {transform:translate3d(-136px,120px,0) scale(.946)}
+  75%   {transform:translate3d(51px,84px,0) scale(.97)}
+  87.5% {transform:translate3d(102px,-36px,0) scale(1)}
+}
+.vignette{position:absolute;inset:0;background:radial-gradient(115% 80% at 50% 40%,transparent 30%,#07090ae8 100%)}
+
+/* header */
+.auth-nav{
+  position:relative;z-index:2;display:flex;align-items:center;justify-content:space-between;
+  padding:1.15rem 3vw;max-width:1180px;margin:0 auto;
+}
+.nav-logo{display:flex;align-items:center;gap:.55rem;font-family:var(--font-display);font-size:1.28rem;font-weight:500;letter-spacing:-.02em}
+.nav-back{color:var(--txt-dim);font-size:.9rem;transition:color .2s}
+.nav-back:hover{color:var(--txt)}
+
+/* buttons */
+.pill-btn{
+  display:inline-block;border:1px solid var(--line);color:var(--txt);
+  background:#07090a59;border-radius:999px;padding:.58rem 1.35rem;font-size:.9rem;
+  font-family:var(--font-body);
+  transition:border-color 200ms ease,color 200ms ease,transform 160ms var(--ease-out),box-shadow 200ms ease;
+}
+.pill-btn:active{transform:scale(.97);transition-duration:100ms;border-color:var(--acid);color:var(--acid)}
+.acid-btn{
+  display:inline-block;background:var(--acid);color:var(--ink);border:none;border-radius:999px;
+  padding:.85rem 1.5rem;font-size:.95rem;font-weight:500;font-family:var(--font-body);
+  transition:transform 180ms var(--bounce),box-shadow 200ms ease,opacity 200ms ease;
+}
+.acid-btn:active:not(:disabled){transform:scale(.97);transition-duration:100ms;box-shadow:0 0 0 4px #d7ff3e4d,0 0 36px #d7ff3ecc}
+@media (hover:hover) and (pointer:fine){
+  .acid-btn:hover:not(:disabled){transform:translateY(-2px);box-shadow:0 8px 32px #d7ff3e40}
+  .pill-btn:hover{border-color:var(--line-2);transform:translateY(-1px)}
+  .oauth-btn:hover:not(:disabled){border-color:var(--line-2);background:#dfe7ea0f}
+}
+/* aria-disabled stays clickable so the page can explain the refusal;
+   the disabled attribute is reserved for the in-flight request state. */
+.acid-btn[aria-disabled="true"],.oauth-btn[aria-disabled="true"]{opacity:.45;box-shadow:none}
+.acid-btn[aria-disabled="true"]:hover,.oauth-btn[aria-disabled="true"]:hover{transform:none}
+.acid-btn:disabled,.oauth-btn:disabled{opacity:.4;cursor:wait;transform:none;box-shadow:none}
+
+/* Windows "Animation effects" being off makes the browser report reduced
+   motion, which froze the whole field even for people who never asked for it.
+   data-motion="on" is an explicit opt back in and wins over the query. */
+@media (prefers-reduced-motion: reduce){
+  html:not([data-motion="on"]) *,html:not([data-motion="on"]) *::before,html:not([data-motion="on"]) *::after{animation-duration:.001ms!important;animation-iteration-count:1!important}
+  html:not([data-motion="on"]) .field .grid,html:not([data-motion="on"]) .aurora{animation:none}
+}

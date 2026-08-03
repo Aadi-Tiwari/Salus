@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en" data-motion="on">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>SALUS console</title>
+<meta name="robots" content="noindex"/>
+<link rel="preconnect" href="https://api.fontshare.com"/>
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin/>
+<link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&f[]=switzer@400,500,600&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%2307090A'/%3E%3Ccircle cx='10.5' cy='10.5' r='6.2' fill='none' stroke='%23D7FF3E' stroke-width='2'/%3E%3Cpath d='M15.3 15.3 L20.4 20.4' stroke='%23D7FF3E' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E"/>
+<link rel="stylesheet" href="/auth.css"/>
+<style>
+/* Hidden until a session is confirmed, so a signed-out visitor never sees the shell. */
+.gated{visibility:hidden}
+.gated.ready{visibility:visible}
+
+.wrap{position:relative;z-index:2;width:min(1180px,92vw);margin:0 auto;padding:1rem 0 6rem}
+.hero-row{display:flex;align-items:flex-end;justify-content:space-between;gap:1.5rem;flex-wrap:wrap;margin-bottom:1.6rem}
+.hero-row h1{font-size:clamp(1.9rem,3.6vw,2.8rem)}
+.hero-row .sub{color:var(--txt-dim);margin:.6rem 0 0;font-size:.98rem;max-width:46ch}
+.eyebrow{display:block;color:var(--acid);margin-bottom:.9rem}
+.nav-right{display:flex;align-items:center;gap:.6rem}
+
+/* tab bar, sits directly under the greeting */
+.tabs{display:flex;gap:.25rem;padding:.35rem;margin-bottom:1.4rem;width:max-content;max-width:100%;
+  background:#0E121480;border:1px solid var(--line);border-radius:999px;overflow-x:auto}
+.tab{
+  display:flex;align-items:center;gap:.5rem;white-space:nowrap;border:0;background:none;color:var(--txt-dim);
+  padding:.6rem 1.15rem;border-radius:999px;font-size:.92rem;font-family:var(--font-body);
+  transition:color 180ms ease,background 180ms ease,box-shadow 180ms ease;
+}
+.tab:hover{color:var(--txt)}
+.tab[aria-selected="true"]{color:var(--acid);background:#d7ff3e12;box-shadow:inset 0 0 0 1px #d7ff3e3d}
+.tab .cnt{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.1em;color:var(--txt-faint)}
+.tab[aria-selected="true"] .cnt{color:#d7ff3e99}
+
+.tabpanel[hidden]{display:none}
+.tabpanel{animation:panelIn 240ms var(--ease-out)}
+@keyframes panelIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion: reduce){.tabpanel{animation:none}}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;align-items:start}
+@media(max-width:900px){.grid2{grid-template-columns:1fr}}
+
+/* 50% transparent, so the animated field reads through the panels */
+.panel{background:#0E121480;border:1px solid var(--line);border-radius:var(--r-lg);overflow:hidden}
+.panel-head{
+  display:flex;align-items:center;gap:1rem;padding:1rem 1.5rem;border-bottom:1px solid var(--line);
+  background:#dfe7ea08;font-family:var(--font-mono);font-size:.66rem;letter-spacing:.16em;
+  color:var(--txt-dim);
+}
+.panel-head .right{margin-left:auto;display:flex;align-items:center;gap:.6rem}
+.panel-body{padding:1.5rem}
+
+/* label / value rows: a fixed label column keeps every value on one axis
+   instead of ragging against the right edge of the card */
+.kv{display:grid;grid-template-columns:11rem 1fr;gap:1rem;align-items:center;
+  padding:.95rem 1.5rem;border-bottom:1px solid var(--line);font-size:.93rem}
+.kv:last-child{border-bottom:0}
+.kv dt{font-family:var(--font-mono);font-size:.68rem;letter-spacing:.1em;color:var(--txt-dim)}
+.kv dd{margin:0;word-break:break-word}
+.kv dd.mono-val{font-family:var(--font-mono);font-size:.78rem;letter-spacing:.04em;color:var(--txt-dim)}
+@media(max-width:520px){.kv{grid-template-columns:1fr;gap:.3rem}}
+
+.tag{font-family:var(--font-mono);font-size:.62rem;letter-spacing:.12em;
+  padding:.3rem .65rem;border-radius:6px;border:1px solid}
+.tag.acid{color:var(--acid);border-color:#d7ff3e66;background:#d7ff3e17}
+.tag.grey{color:var(--txt-dim);border-color:var(--line)}
+.tag.red{color:var(--breach);border-color:#ff4a3266;background:#ff4a3217}
+.tag.amber{color:var(--amber);border-color:#ffae2b66;background:#ffae2b12}
+
+.next p{margin:0 0 1rem;color:var(--txt-dim);font-size:.92rem}
+.next ul{margin:0;padding:0;list-style:none;display:grid;gap:.7rem}
+.next li{display:flex;gap:.6rem;font-size:.92rem;color:var(--txt-dim);align-items:flex-start}
+.next li i{color:var(--acid);font-style:normal;flex:none}
+
+/* repositories */
+.search{
+  width:min(260px,45vw);padding:.5rem .8rem;border:1px solid var(--line);border-radius:999px;
+  background:#07090a80;color:var(--txt);font-family:var(--font-mono);font-size:.75rem;outline:none;
+  transition:border-color 200ms ease,box-shadow 200ms ease;
+}
+.search::placeholder{color:var(--txt-faint)}
+.search:focus{border-color:#d7ff3e8c;box-shadow:0 0 0 4px #d7ff3e14}
+/* The whole row is the control. Clicking anywhere on it starts a scan of that
+   repository, so the pill on the right is a signpost rather than the only
+   target worth aiming at. */
+.repo{
+  display:flex;align-items:center;gap:.9rem;padding:.9rem 1.5rem;
+  border-bottom:1px solid var(--line);font-size:.93rem;cursor:pointer;
+  transition:background 160ms ease,box-shadow 160ms ease;
+}
+.repo:hover{background:#d7ff3e0a;box-shadow:inset 2px 0 0 var(--acid)}
+.repo:hover .nm{color:var(--acid)}
+.repo:hover .go{color:var(--acid);border-color:#d7ff3e66}
+.repo:last-child{border-bottom:0}
+.repo[hidden]{display:none}
+.go{
+  font-family:var(--font-mono);font-size:.62rem;letter-spacing:.12em;
+  color:var(--txt-dim);border:1px solid var(--line);border-radius:999px;padding:.3rem .75rem;
+  white-space:nowrap;transition:color 180ms ease,border-color 180ms ease;
+}
+.repo .nm{font-weight:500;color:var(--txt);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.repo .lang{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.08em;color:var(--txt-faint);white-space:nowrap}
+.repo .meta{margin-left:auto;display:flex;align-items:center;gap:.6rem;flex:none}
+.scan-link{
+  font-family:var(--font-mono);font-size:.62rem;letter-spacing:.12em;
+  color:var(--txt-dim);border:1px solid var(--line);border-radius:999px;padding:.3rem .75rem;
+  transition:color 180ms ease,border-color 180ms ease;
+}
+.scan-link:hover{color:var(--acid);border-color:#d7ff3e66}
+.empty{padding:1.5rem;color:var(--txt-dim);font-size:.92rem;line-height:1.6}
+.empty b{color:var(--txt);display:block;margin-bottom:.4rem;font-weight:500}
+.reconnect{margin-top:1rem}
+
+/* code sources */
+.src-grid{display:grid;grid-template-columns:1fr 1fr;gap:1.2rem;align-items:start}
+@media(max-width:900px){.src-grid{grid-template-columns:1fr}}
+.src-title{display:flex;align-items:center;gap:.6rem;font-size:1rem;font-weight:500;color:var(--txt);margin-bottom:.4rem}
+.src-why{margin:0 0 1.1rem;color:var(--txt-dim);font-size:.88rem;line-height:1.6}
+.field-row{display:grid;gap:.4rem;margin-bottom:.85rem}
+.field-row label{font-family:var(--font-mono);font-size:.66rem;letter-spacing:.14em;color:var(--txt-dim)}
+.field-row input{
+  width:100%;padding:.75rem .9rem;border:1px solid var(--line);border-radius:12px;
+  background:#07090a80;color:var(--txt);font-family:var(--font-mono);font-size:.85rem;outline:none;
+  transition:border-color 200ms ease,box-shadow 200ms ease;
+}
+.field-row input::placeholder{color:var(--txt-faint)}
+.field-row input:focus{border-color:#d7ff3e8c;box-shadow:0 0 0 4px #d7ff3e14}
+.hosts{display:flex;flex-wrap:wrap;gap:.4rem;margin:-.2rem 0 1rem}
+.hosts span{font-family:var(--font-mono);font-size:.6rem;letter-spacing:.1em;color:var(--txt-faint);
+  border:1px solid var(--line);border-radius:6px;padding:.2rem .5rem}
+.drop{
+  border:1.5px dashed var(--line-2);border-radius:var(--r-sm);padding:1.5rem 1rem;text-align:center;
+  background:#07090a4d;cursor:pointer;transition:border-color 200ms ease,background 200ms ease;
+}
+.drop:hover,.drop.over{border-color:#d7ff3e8c;background:#d7ff3e0d}
+.drop .lead{font-size:.92rem;color:var(--txt)}
+.drop .hint{font-size:.8rem;color:var(--txt-dim);margin-top:.3rem}
+.drop input[type=file]{display:none}
+.src-actions{display:flex;gap:.6rem;flex-wrap:wrap;margin-top:.3rem}
+
+.added{margin-top:1.2rem}
+.added .panel-head{border-radius:0}
+.src-row{display:flex;align-items:center;gap:.8rem;padding:.85rem 1.5rem;border-bottom:1px solid var(--line);font-size:.9rem}
+.src-row:last-child{border-bottom:0}
+.src-row .ico{flex:none;color:var(--acid)}
+.src-row .nm{color:var(--txt);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.src-row .meta{margin-left:auto;display:flex;align-items:center;gap:.6rem;flex:none}
+.src-row .drop-src{background:none;border:0;color:var(--txt-faint);font-family:var(--font-mono);font-size:.62rem;
+  letter-spacing:.1em;text-decoration:underline;text-underline-offset:3px;padding:0}
+.src-row .drop-src:hover{color:var(--breach)}
+
+.msg{display:none;margin-top:1rem;padding:.8rem 1rem;border-radius:12px;font-size:.87rem;border:1px solid;line-height:1.55}
+.msg.show{display:block}
+.msg.err{border-color:#ff4a3247;background:#ff4a3214;color:#FFC2B7}
+.msg.ok{border-color:#d7ff3e42;background:#d7ff3e12;color:#EAFFAC}
+.msg.warn{border-color:#ffae2b47;background:#ffae2b12;color:#FFDFA8}
+.msg code{font-family:var(--font-mono);font-size:.82em;color:var(--txt)}
+.foot-note{margin:1.4rem 0 0;color:var(--txt-faint);font-size:.78rem;line-height:1.6}
+</style>
+</head>
+<body>
+
+<div class="field" aria-hidden="true">
+  <div class="grid"></div>
+  <span class="aurora au-1"></span><span class="aurora au-2"></span>
+  <div class="vignette"></div>
+</div>
+
+<div class="gated" id="gated">
+  <nav class="auth-nav">
+    <a class="nav-logo" href="/" aria-label="Salus, home">
+      SALUS
+      <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="10.5" cy="10.5" r="6.4" fill="none" stroke="var(--acid)" stroke-width="1.9"/>
+        <path d="M15.3 15.3 L20.4 20.4" stroke="var(--acid)" stroke-width="2.3" stroke-linecap="round"/>
+        <path d="M7.7 10.6 L9.8 12.7 L13.5 8.6" fill="none" stroke="var(--acid)" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </a>
+    <div class="nav-right">
+      <a class="acid-btn" href="/scanner.html">New scan</a>
+      <button class="pill-btn" id="signout">Sign out</button>
+    </div>
+  </nav>
+
+  <main class="wrap">
+    <div class="hero-row">
+      <div>
+        <span class="mono eyebrow">Console</span>
+        <h1 id="greeting">Signed in.</h1>
+        <p class="sub">No domain verified yet, so only Tier 1 passive scans are available to you.</p>
+      </div>
+    </div>
+
+    <div class="tabs" role="tablist" aria-label="Console sections">
+      <button class="tab" role="tab" id="tab-account" aria-controls="p-account" aria-selected="true">Your info</button>
+      <button class="tab" role="tab" id="tab-repos" aria-controls="p-repos" aria-selected="false">
+        Repositories <span class="cnt" id="repo-count"></span>
+      </button>
+      <button class="tab" role="tab" id="tab-sources" aria-controls="p-sources" aria-selected="false">
+        Code sources <span class="cnt" id="src-count"></span>
+      </button>
+    </div>
+
+    <section class="tabpanel" id="p-account" role="tabpanel" aria-labelledby="tab-account">
+      <div class="grid2">
+        <div class="panel">
+          <div class="panel-head">Your account</div>
+          <dl class="kv-list">
+            <div class="kv"><dt>Email</dt><dd id="v-email">&mdash;</dd></div>
+            <div class="kv"><dt>Signed in with</dt><dd id="v-provider">&mdash;</dd></div>
+            <div class="kv"><dt>Linked identities</dt><dd id="v-identities">&mdash;</dd></div>
+            <div class="kv"><dt>GitHub repo access</dt><dd id="v-repo">&mdash;</dd></div>
+            <div class="kv"><dt>User ID</dt><dd id="v-id" class="mono-val">&mdash;</dd></div>
+          </dl>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">What unlocks next</div>
+          <div class="panel-body next">
+            <p>Tier 2 needs proof the domain is yours. Tier 3 needs a repository Salus can open a pull request against.</p>
+            <ul>
+              <li><i>&rarr;</i> Place a verification token on your domain</li>
+              <li><i>&rarr;</i> Add two test accounts Salus can sign in with</li>
+              <li><i>&rarr;</i> Pick the repository behind the app</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="tabpanel" id="p-repos" role="tabpanel" aria-labelledby="tab-repos" hidden>
+      <div class="panel">
+        <div class="panel-head">
+          <span>Repositories Salus can read</span>
+          <span class="right">
+            <input class="search" id="repo-search" type="search" placeholder="Filter by name" autocomplete="off"/>
+          </span>
+        </div>
+        <div id="repo-body"><div class="empty">Checking GitHub access&hellip;</div></div>
+      </div>
+      <p class="foot-note">Click a repository to scan it. Salus reads the code to locate the flaw behind a finding and to open a pull request for the fix. It never pushes to your repository until you merge that pull request yourself.</p>
+    </section>
+
+    <section class="tabpanel" id="p-sources" role="tabpanel" aria-labelledby="tab-sources" hidden>
+      <div class="src-grid">
+        <div class="panel">
+          <div class="panel-head">Git host</div>
+          <div class="panel-body">
+            <div class="src-title">Point Salus at any Git URL</div>
+            <p class="src-why">Your code does not have to live on GitHub. Give Salus a clone URL on any host, and it reads the repository the same way.</p>
+            <div class="hosts"><span>GitLab</span><span>Bitbucket</span><span>Gitea</span><span>Codeberg</span><span>Self-hosted</span></div>
+            <div class="field-row">
+              <label for="git-url">Clone URL</label>
+              <input id="git-url" type="text" placeholder="https://gitlab.com/your-org/your-repo.git" autocomplete="off" spellcheck="false"/>
+            </div>
+            <div class="field-row">
+              <label for="git-branch">Branch, optional</label>
+              <input id="git-branch" type="text" placeholder="main" autocomplete="off" spellcheck="false"/>
+            </div>
+            <div class="src-actions"><button class="pill-btn" id="add-git" type="button">Add this repository</button></div>
+            <p class="foot-note">A private repository needs a read-only deploy key or an access token. Salus asks for that on the server side when the scan starts, so no credential is ever typed into this page.</p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">Website</div>
+          <div class="panel-body">
+            <div class="src-title">The app you want scanned</div>
+            <p class="src-why">A website is the one source Tier 1 can act on by itself, because the scan reads what the running app already serves. Add every environment you want checked and pick one when you start a run.</p>
+            <div class="field-row">
+              <label for="site-url">App URL</label>
+              <input id="site-url" type="text" placeholder="https://your-app.lovable.app" autocomplete="off" spellcheck="false"/>
+            </div>
+            <div class="field-row">
+              <label for="site-name">Label, optional</label>
+              <input id="site-name" type="text" placeholder="production" autocomplete="off" spellcheck="false"/>
+            </div>
+            <div class="src-actions"><button class="pill-btn" id="add-site" type="button">Add this website</button></div>
+            <p class="foot-note">Only add a site you own or are authorized to test. Salus asks you to confirm that again before any scan actually runs.</p>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head">Upload</div>
+          <div class="panel-body">
+            <div class="src-title">Code that is in no repository at all</div>
+            <p class="src-why">Drop an archive, hand over the project folder, or pick individual files straight from your machine. Salus reads them without needing a Git remote at all.</p>
+
+            <div class="drop" id="drop-zip">
+              <div class="lead">Drop a .zip of your project</div>
+              <div class="hint">Or click to browse</div>
+              <input type="file" id="zip" accept=".zip,.tar,.tgz,.gz"/>
+            </div>
+
+            <div class="src-actions" style="margin-top:.9rem">
+              <button class="pill-btn" id="pick-folder" type="button">Choose a folder</button>
+              <input type="file" id="folder" webkitdirectory directory multiple hidden/>
+              <button class="pill-btn" id="pick-files" type="button">Choose single files</button>
+              <input type="file" id="files" multiple hidden/>
+            </div>
+            <p class="foot-note">Files are read inside your browser. Nothing leaves this page until you start a scan.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel added">
+        <div class="panel-head">
+          <span>Sources added</span>
+          <span class="right"><a class="scan-link" href="/scanner.html">Run a scan &rarr;</a></span>
+        </div>
+        <div id="src-body"><div class="empty"><b>No sources added yet.</b>The GitHub repositories you own already appear under Repositories. Anything that lives somewhere else belongs here.</div></div>
+      </div>
+
+      <div class="msg" id="msg" role="status" aria-live="polite"></div>
+    </section>
+  </main>
+</div>
+
+<script src="/config.js"></script>
+<script type="module">
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const cfg = window.SALUS_CONFIG;
+const $ = (id) => document.getElementById(id);
+
+if (cfg.SUPABASE_URL.includes("YOUR-PROJECT-REF")) {
+  document.body.innerHTML =
+    '<p style="color:#FFDFA8;font-family:sans-serif;padding:3rem;max-width:40rem">' +
+    "Set SUPABASE_URL in config.js before this page can check a session.</p>";
+  throw new Error("Supabase URL not configured");
+}
+
+const supabase = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY, {
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
+});
+
+/* The GitHub token rides in on the session exactly once and Supabase never
+   persists it. Landing here from an OAuth redirect emits INITIAL_SESSION, not
+   SIGNED_IN, so listening for SIGNED_IN alone silently loses it. Take it from
+   any event that carries one, and from getSession() below. */
+const keepToken = (session) => {
+  if (session?.provider_token) {
+    sessionStorage.setItem("salus.provider_token", session.provider_token);
+    return true;
+  }
+  return false;
+};
+supabase.auth.onAuthStateChange((event, session) => {
+  keepToken(session);
+  if (event === "SIGNED_OUT") location.replace("/signin.html");
+});
+
+const { data: { session } } = await supabase.auth.getSession();
+if (!session) {
+  location.replace("/signin.html");
+} else {
+  const user = session.user;
+  // app_metadata.provider is whichever provider CREATED the account, not the one
+  // just used. With linked identities that reads as a lie: sign in with Google on
+  // a GitHub-created account and it still says github. Take the most recently
+  // used identity instead, which is what the label actually claims.
+  // Sort on updated_at, not last_sign_in_at: Supabase only sets last_sign_in_at
+  // when an identity is first linked, so reusing a linked provider leaves it
+  // stale and the label names the wrong provider. updated_at does move.
+  const stamp = (i) => new Date(i.updated_at || i.last_sign_in_at || 0);
+  const byRecency = (user.identities || []).slice().sort((a, b) => stamp(b) - stamp(a));
+  const provider = (byRecency[0] && byRecency[0].provider) || user.app_metadata.provider || "email";
+  const identities = (user.identities || []).map((i) => i.provider);
+  const name = user.user_metadata.full_name || user.user_metadata.name || "";
+
+  $("greeting").textContent = name ? "Signed in as " + name.split(" ")[0] + "." : "Signed in.";
+  $("v-email").textContent = user.email || "not set";
+  $("v-id").textContent = user.id;
+
+  $("v-provider").innerHTML = '<span class="tag acid">' + provider + "</span>";
+  $("v-identities").innerHTML = identities.length
+    ? identities.map((p) => '<span class="tag grey">' + p + "</span>").join(" ")
+    : '<span class="tag grey">None</span>';
+
+  keepToken(session);
+  const token = sessionStorage.getItem("salus.provider_token");
+  $("v-repo").innerHTML = token
+    ? '<span class="tag acid">Connected</span>'
+    : '<span class="tag grey">Not connected</span>';
+
+  $("gated").classList.add("ready");
+  loadRepos(token, identities.includes("github"));
+}
+
+/* ---- tabs ---- */
+const tabs = [...document.querySelectorAll(".tab")];
+function showTab(id) {
+  tabs.forEach((t) => {
+    const on = t.id === id;
+    t.setAttribute("aria-selected", String(on));
+    $(t.getAttribute("aria-controls")).hidden = !on;
+  });
+  history.replaceState(null, "", "#" + id.replace("tab-", ""));
+}
+tabs.forEach((t) => t.addEventListener("click", () => showTab(t.id)));
+// Arrow keys move between tabs, which a role="tablist" is expected to support.
+document.querySelector(".tabs").addEventListener("keydown", (e) => {
+  const i = tabs.findIndex((t) => t.getAttribute("aria-selected") === "true");
+  if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+    e.preventDefault();
+    const next = tabs[(i + (e.key === "ArrowRight" ? 1 : tabs.length - 1)) % tabs.length];
+    next.focus();
+    showTab(next.id);
+  }
+});
+const fromHash = "tab-" + location.hash.replace("#", "");
+if (tabs.some((t) => t.id === fromHash)) showTab(fromHash);
+
+/* ---- repositories ---- */
+function renderNoToken(isGithubUser) {
+  const body = $("repo-body");
+  {
+    body.innerHTML = isGithubUser
+      ? '<div class="empty"><b>GitHub token not held.</b>Supabase stores the GitHub token alongside your session, but it drops that token when the session refreshes, which happens roughly once an hour. Your login is unaffected. Sign in with GitHub again to restore repository access.' +
+        '<div class="reconnect"><button class="pill-btn" id="reconnect">Reconnect GitHub</button></div></div>'
+      : '<div class="empty"><b>No GitHub identity on this account.</b>Sign in with GitHub to let Salus read the code behind a finding, or add your code under Code sources.</div>';
+    // Must re-run OAuth here, not bounce to /signin.html: the session is still
+    // valid, so signin would just redirect straight back with no new token.
+    const rc = $("reconnect");
+    if (rc) rc.addEventListener("click", async () => {
+      rc.disabled = true;
+      rc.textContent = "Redirecting to GitHub…";
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "github",
+        options: { redirectTo: location.origin + "/app.html", scopes: cfg.GITHUB_SCOPES },
+      });
+      if (error) { rc.disabled = false; rc.textContent = "Reconnect GitHub"; alert(error.message); }
+    });
+    return;
+  }
+}
+
+async function loadRepos(token, isGithubUser) {
+  const body = $("repo-body");
+  if (!token) return renderNoToken(isGithubUser);
+
+  try {
+    const res = await fetch("https://api.github.com/user/repos?per_page=20&sort=updated&affiliation=owner", {
+      headers: { Authorization: "Bearer " + token, Accept: "application/vnd.github+json" },
+    });
+    // A token left over from an earlier GitHub session is dead after signing in
+    // with another provider. Drop it and offer reconnect rather than claiming
+    // "connected" and showing a raw 401.
+    if (res.status === 401 || res.status === 403) {
+      sessionStorage.removeItem("salus.provider_token");
+      $("v-repo").innerHTML = '<span class="tag grey">Not connected</span>';
+      return renderNoToken(isGithubUser);
+    }
+    if (!res.ok) throw new Error("GitHub returned " + res.status + " " + res.statusText);
+    const repos = await res.json();
+    $("repo-count").textContent = repos.length ? "· " + repos.length : "";
+    body.innerHTML = repos.length
+      ? repos.map((r) =>
+          '<a class="repo" data-name="' + r.full_name.toLowerCase() + '"' +
+             ' href="/scanner.html?repo=' + encodeURIComponent(r.full_name) + '">' +
+            '<span class="nm">' + r.name + "</span>" +
+            (r.language ? '<span class="lang">' + r.language + "</span>" : "") +
+            '<span class="meta">' +
+              '<span class="tag ' + (r.private ? "red" : "grey") + '">' + (r.private ? "Private" : "Public") + "</span>" +
+              '<span class="go">Scan &rarr;</span>' +
+            "</span>" +
+          "</a>"
+        ).join("")
+      : '<div class="empty"><b>No repositories found.</b>The token works, but this account does not own any repositories.</div>';
+  } catch (err) {
+    body.innerHTML = '<div class="empty"><b>Could not read your repositories.</b>' + err.message + ".</div>";
+  }
+}
+
+$("repo-search").addEventListener("input", (e) => {
+  const q = e.target.value.trim().toLowerCase();
+  document.querySelectorAll(".repo").forEach((r) => {
+    r.hidden = q && !r.dataset.name.includes(q);
+  });
+});
+
+/* ---- code sources ----
+   Held in sessionStorage only. Nothing is uploaded until a scan starts, so a
+   source added here is a pointer, not a copy. */
+const msg = $("msg");
+function say(text, kind = "err") {
+  msg.className = "msg show " + kind;
+  msg.textContent = text;
+}
+const readSources = () => JSON.parse(sessionStorage.getItem("salus.sources") || "[]");
+const writeSources = (list) => sessionStorage.setItem("salus.sources", JSON.stringify(list));
+
+const ICONS = {
+  site: '<svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="M3 12h18M12 3c2.5 2.6 2.5 15.4 0 18M12 3c-2.5 2.6-2.5 15.4 0 18" stroke="currentColor" stroke-width="1.5"/></svg>',
+  repo: '<svg class="ico" width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27s1.36.09 2 .27c1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.01 8.01 0 0 0 16 8c0-4.42-3.58-8-8-8z"/></svg>',
+  file: '<svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M6 3h7l5 5v13H6z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M13 3v5h5" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+  git: '<svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none"><circle cx="6" cy="6" r="2.6" stroke="currentColor" stroke-width="1.7"/><circle cx="6" cy="18" r="2.6" stroke="currentColor" stroke-width="1.7"/><circle cx="18" cy="9" r="2.6" stroke="currentColor" stroke-width="1.7"/><path d="M6 8.6v6.8M8.6 6.6C13 6.6 15.4 7.4 16 8.2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+  zip: '<svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 4h9l5 5v11H5z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M10 5v3M12 8v3M10 11v3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>',
+  folder: '<svg class="ico" width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M4 6h5.5l2 2.5H20V19H4z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/></svg>',
+};
+
+/* A stable key per source, so the same repository cannot be attached twice and
+   a ticked checkbox can find its own entry again after a reload. */
+const sourceKey = (s) => s.kind + ":" + (s.repo || s.url || s.label);
+
+/* A website is something a scan can point at. Everything else is code that a
+   finding gets traced back to. Saying which is which stops the scanner from
+   offering an archive as a target it cannot reach. */
+const ROLE = { site: "target", repo: "code", git: "code", zip: "code", folder: "code", file: "code" };
+
+function renderSources() {
+  const list = readSources();
+  $("src-count").textContent = list.length ? "· " + list.length : "";
+  const body = $("src-body");
+  if (!list.length) {
+    body.innerHTML = '<div class="empty"><b>No sources added yet.</b>Your GitHub repositories are ready to scan under Repositories. Add a website, a Git URL or an upload here.</div>';
+    return;
+  }
+  body.innerHTML = list.map((s, i) =>
+    '<div class="src-row">' + (ICONS[s.kind] || ICONS.file) +
+      '<span class="nm">' + s.label + "</span>" +
+      '<span class="meta">' +
+        '<span class="tag ' + (ROLE[s.kind] === "target" ? "acid" : "grey") + '">' + ROLE[s.kind] + "</span>" +
+        '<span class="tag grey">' + s.detail + "</span>" +
+        '<button class="drop-src" type="button" data-i="' + i + '">Remove</button>' +
+      "</span>" +
+    "</div>"
+  ).join("");
+  body.querySelectorAll(".drop-src").forEach((b) =>
+    b.addEventListener("click", () => {
+      const list = readSources();
+      list.splice(Number(b.dataset.i), 1);
+      writeSources(list);
+      renderSources();
+    })
+  );
+}
+function addSource(src) {
+  const list = readSources();
+  if (list.some((s) => sourceKey(s) === sourceKey(src))) {
+    say(src.label + " is already attached.", "warn");
+    return false;
+  }
+  list.push(src);
+  writeSources(list);
+  renderSources();
+  return true;
+}
+renderSources();
+
+$("add-git").addEventListener("click", () => {
+  const raw = $("git-url").value.trim();
+  if (!raw) return say("Paste the clone URL of the repository.");
+  let host;
+  try {
+    // Accepts scp-style git@host:org/repo as well as an https clone URL.
+    host = raw.startsWith("git@") ? raw.slice(4).split(":")[0] : new URL(raw).hostname;
+  } catch { return say("That does not look like a clone URL. Try the form https://host/org/repo.git instead."); }
+  const branch = $("git-branch").value.trim() || "default branch";
+  addSource({ kind: "git", label: raw, detail: host + " · " + branch });
+  $("git-url").value = "";
+  $("git-branch").value = "";
+  say("Added " + host + ". You can pick it when you start a scan.", "ok");
+});
+
+$("add-site").addEventListener("click", () => {
+  let raw = $("site-url").value.trim();
+  if (!raw) return say("Enter the URL of the app you want scanned.");
+  // A founder pasting their app rarely types the scheme, so add it rather than
+  // rejecting a URL that is only missing "https://".
+  if (!/^https?:\/\//i.test(raw)) raw = "https://" + raw;
+  let url;
+  try { url = new URL(raw); } catch { return say("That does not look like a web address."); }
+  if (!url.hostname.includes(".")) return say("That does not look like a web address.");
+
+  const name = $("site-name").value.trim();
+  if (!addSource({ kind: "site", url: url.href, label: url.href, detail: name || url.hostname })) return;
+  $("site-url").value = "";
+  $("site-name").value = "";
+  say("Added " + url.hostname + ". Pick it as the target when you start a scan.", "ok");
+});
+
+const files = $("files");
+$("pick-files").addEventListener("click", () => files.click());
+files.addEventListener("change", () => {
+  const picked = [...files.files];
+  if (!picked.length) return;
+  let added = 0;
+  picked.forEach((f) => {
+    if (addSource({ kind: "file", label: f.name, detail: (f.size / 1024).toFixed(0) + " kb" })) added++;
+  });
+  files.value = "";
+  if (!added) return;
+  say(
+    added === 1
+      ? "Added " + picked[0].name + ". It stays in this tab until a scan starts."
+      : "Added " + added + " files. They stay in this tab until a scan starts.",
+    "ok"
+  );
+});
+
+const dropZip = $("drop-zip"), zip = $("zip");
+function takeArchive(file) {
+  addSource({ kind: "zip", label: file.name, detail: (file.size / 1048576).toFixed(1) + " mb" });
+  say("Added " + file.name + ". It stays in this tab until a scan starts.", "ok");
+}
+dropZip.addEventListener("click", () => zip.click());
+zip.addEventListener("change", () => { if (zip.files.length) takeArchive(zip.files[0]); });
+dropZip.addEventListener("dragover", (e) => { e.preventDefault(); dropZip.classList.add("over"); });
+dropZip.addEventListener("dragleave", () => dropZip.classList.remove("over"));
+dropZip.addEventListener("drop", (e) => {
+  e.preventDefault();
+  dropZip.classList.remove("over");
+  if (e.dataTransfer.files.length) takeArchive(e.dataTransfer.files[0]);
+});
+
+const folder = $("folder");
+$("pick-folder").addEventListener("click", () => folder.click());
+folder.addEventListener("change", () => {
+  const files = [...folder.files];
+  if (!files.length) return;
+  const root = files[0].webkitRelativePath.split("/")[0];
+  const code = files.filter((f) => !f.webkitRelativePath.includes("/node_modules/"));
+  const bytes = code.reduce((n, f) => n + f.size, 0);
+  addSource({
+    kind: "folder",
+    label: root,
+    detail: code.length + " files · " + (bytes / 1048576).toFixed(1) + " mb",
+  });
+  // Worth saying out loud on a security product: a local folder often carries
+  // the live secrets that a repository would have gitignored.
+  const secrets = code.filter((f) => /(^|\/)\.env(\.|$)|\.pem$|(^|\/)id_rsa$/.test(f.webkitRelativePath));
+  if (secrets.length) {
+    say(
+      "Added " + root + ". It contains " + secrets.length + " secret file" +
+        (secrets.length > 1 ? "s, including " : ", namely ") + secrets[0].name +
+        ". Salus does not need those files to run a scan, so they are left out of the upload.",
+      "warn"
+    );
+  } else {
+    say("Added " + root + ", with " + code.length + " files. Anything under node_modules was left out.", "ok");
+  }
+});
+
+$("signout").addEventListener("click", async () => {
+  sessionStorage.removeItem("salus.provider_token");
+  sessionStorage.removeItem("salus.sources");
+  await supabase.auth.signOut();
+  location.replace("/signin.html");
+});
+</script>
+</body>
+</html>
