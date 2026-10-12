@@ -12,7 +12,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%2307090A'/%3E%3Ccircle cx='10.5' cy='10.5' r='6.2' fill='none' stroke='%23D7FF3E' stroke-width='2'/%3E%3Cpath d='M15.3 15.3 L20.4 20.4' stroke='%23D7FF3E' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E"/>
 <link rel="stylesheet" href="/auth.css"/>
 <style>
-/* Hidden until a session is confirmed, so a signed-out visitor never sees the shell. */
+/* Hosted pages keep the shell hidden until a session is confirmed. */
 .gated{visibility:hidden}
 .gated.ready{visibility:visible}
 
@@ -755,21 +755,21 @@
 
 <script src="/config.js"></script>
 <script type="module">
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const localPreview = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
 import { fixableFindings, buildPatch, filesFor } from "/fixes.js";
 import { openPullRequest, pullRequestBody, parseRepo } from "/github.js";
 
 const cfg = window.SALUS_CONFIG;
 const $ = (id) => document.getElementById(id);
 
-if (cfg.SUPABASE_URL.includes("YOUR-PROJECT-REF")) {
+if (!localPreview && cfg.SUPABASE_URL.includes("YOUR-PROJECT-REF")) {
   document.body.innerHTML =
     '<p style="color:#FFDFA8;font-family:sans-serif;padding:3rem;max-width:40rem">' +
     "Set SUPABASE_URL in config.js before this page can check a session.</p>";
   throw new Error("Supabase URL not configured");
 }
 
-const supabase = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY, {
+const supabase = localPreview ? null : (await import("https://esm.sh/@supabase/supabase-js@2")).createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 
@@ -780,22 +780,25 @@ const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-supabase.auth.onAuthStateChange((event, session) => {
+supabase?.auth.onAuthStateChange((event, session) => {
   if (session?.provider_token) sessionStorage.setItem("salus.provider_token", session.provider_token);
   if (event === "SIGNED_OUT") location.replace("/signin.html");
 });
 
-const { data: { session } } = await supabase.auth.getSession();
-if (!session) {
+const session = localPreview ? null : (await supabase.auth.getSession()).data.session;
+if (!localPreview && !session) {
   location.replace("/signin.html");
   throw new Error("redirecting to sign in");
 }
 
-const user = session.user;
-$("accountName").textContent =
+const user = session?.user;
+$("accountName").textContent = localPreview ? "Local preview" :
   user.user_metadata.user_name || user.user_metadata.full_name || user.email || "your account";
 $("accountBadge").classList.add("show");
 $("gated").classList.add("ready");
+if (localPreview) {
+  document.querySelector(".note").textContent = "Local preview. You can configure a scan here; running it requires sign-in on the hosted app.";
+}
 
 /* ---- cursor glow ----
    Eased toward the cursor on one animation frame at a time, so a burst of
@@ -1006,6 +1009,7 @@ function readTarget() {
 
 $("run").addEventListener("click", () => {
   clearSay();
+  if (localPreview) return say("Live scans require sign-in on the hosted app. Nothing was sent or saved.", "warn");
   const target = readTarget();
   if (!target) { $("url").focus(); return say("Enter the URL of the app you want scanned."); }
   if (!selected().length) return say("Pick at least one check to run.");
@@ -1500,6 +1504,7 @@ function renderAll() {
 
 /* ---- loading a scan ---- */
 async function loadScan(scanId) {
+  if (localPreview) return say("Saved scans require sign-in on the hosted app.", "warn");
   const { data: scan, error } = await supabase.from("scans").select("*").eq("id", scanId).single();
   if (error) {
     if (error.code === SCHEMA_MISSING) return schemaHelp();
@@ -1581,6 +1586,7 @@ function watch(scanId) {
 
 /* ---- starting a scan ---- */
 confirmBtn.addEventListener("click", async () => {
+  if (localPreview) return say("Live scans require sign-in on the hosted app. Nothing was sent or saved.", "warn");
   if (!consent.checked) {
     gate.classList.remove("nudge");
     void gate.offsetWidth;

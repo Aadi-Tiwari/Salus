@@ -12,7 +12,7 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%2307090A'/%3E%3Ccircle cx='10.5' cy='10.5' r='6.2' fill='none' stroke='%23D7FF3E' stroke-width='2'/%3E%3Cpath d='M15.3 15.3 L20.4 20.4' stroke='%23D7FF3E' stroke-width='2.4' stroke-linecap='round'/%3E%3C/svg%3E"/>
 <link rel="stylesheet" href="/auth.css"/>
 <style>
-/* Hidden until a session is confirmed, so a signed-out visitor never sees the shell. */
+/* Hosted pages keep the shell hidden until a session is confirmed. */
 .gated{visibility:hidden}
 .gated.ready{visibility:visible}
 
@@ -322,19 +322,19 @@
 
 <script src="/config.js"></script>
 <script type="module">
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+const localPreview = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
 
 const cfg = window.SALUS_CONFIG;
 const $ = (id) => document.getElementById(id);
 
-if (cfg.SUPABASE_URL.includes("YOUR-PROJECT-REF")) {
+if (!localPreview && cfg.SUPABASE_URL.includes("YOUR-PROJECT-REF")) {
   document.body.innerHTML =
     '<p style="color:#FFDFA8;font-family:sans-serif;padding:3rem;max-width:40rem">' +
     "Set SUPABASE_URL in config.js before this page can check a session.</p>";
   throw new Error("Supabase URL not configured");
 }
 
-const supabase = createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY, {
+const supabase = localPreview ? null : (await import("https://esm.sh/@supabase/supabase-js@2")).createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY, {
   auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
 });
 
@@ -349,13 +349,24 @@ const keepToken = (session) => {
   }
   return false;
 };
-supabase.auth.onAuthStateChange((event, session) => {
+supabase?.auth.onAuthStateChange((event, session) => {
   keepToken(session);
   if (event === "SIGNED_OUT") location.replace("/signin.html");
 });
 
-const { data: { session } } = await supabase.auth.getSession();
-if (!session) {
+const session = localPreview ? null : (await supabase.auth.getSession()).data.session;
+if (localPreview) {
+  $("greeting").textContent = "Local preview.";
+  document.querySelector(".sub").textContent = "Explore the console and scanner without signing in. Live scans require an account.";
+  $("v-email").textContent = "Not signed in";
+  $("v-id").textContent = "Local preview";
+  $("v-provider").textContent = "No login required";
+  $("v-identities").textContent = "None";
+  $("v-repo").textContent = "Not connected";
+  $("repo-body").innerHTML = '<div class="empty"><b>Local preview.</b>GitHub access requires sign-in. You can still add sources under Code sources.</div>';
+  $("signout").textContent = "Back to site";
+  $("gated").classList.add("ready");
+} else if (!session) {
   location.replace("/signin.html");
 } else {
   const user = session.user;
@@ -647,6 +658,7 @@ folder.addEventListener("change", () => {
 });
 
 $("signout").addEventListener("click", async () => {
+  if (localPreview) return location.assign("/");
   sessionStorage.removeItem("salus.provider_token");
   sessionStorage.removeItem("salus.sources");
   await supabase.auth.signOut();

@@ -182,10 +182,11 @@
 
 <script src="/config.js"></script>
 <script type="module">
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { safeReturnPath } from "/navigation.js";
+const localPreview = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
 
 const cfg = window.SALUS_CONFIG;
-const configured = !cfg.SUPABASE_URL.includes("YOUR-PROJECT-REF");
+const configured = !localPreview && !cfg.SUPABASE_URL.includes("YOUR-PROJECT-REF");
 
 const $ = (id) => document.getElementById(id);
 const consent = $("consent"), gate = $("gate"), msg = $("msg");
@@ -197,17 +198,21 @@ const consent = $("consent"), gate = $("gate"), msg = $("msg");
    this is a security product. */
 const destination = (() => {
   const asked = new URLSearchParams(location.search).get("next");
-  if (asked && asked.startsWith("/") && !asked.startsWith("//")) return asked;
-  return cfg.AFTER_SIGNIN;
+  return safeReturnPath(asked || cfg.AFTER_SIGNIN, location.origin);
 })();
 const destinationURL = () => new URL(destination, location.origin).href;
+if (localPreview) {
+  const target = new URL(destination, location.origin);
+  location.replace(target.origin === location.origin && ["/app.html", "/scanner.html"].includes(target.pathname)
+    ? target.href : "/app.html");
+}
 const btnGoogle = $("btn-google"), btnGithub = $("btn-github"), submit = $("submit");
 let mode = "signin";
 
 if (!configured) $("setup").classList.add("show");
 
 const supabase = configured
-  ? createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY, {
+  ? (await import("https://esm.sh/@supabase/supabase-js@2")).createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY, {
       auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
     })
   : null;
