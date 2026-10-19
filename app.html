@@ -324,8 +324,10 @@
 <script type="module">
 const localPreview = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
 
-const cfg = window.SALUS_CONFIG;
+const cfg = window.SALUS_CONFIG || {};
 const $ = (id) => document.getElementById(id);
+const esc = (value) => String(value ?? "").replace(/[&<>"']/g, (char) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 
 if (!localPreview && cfg.SUPABASE_URL.includes("YOUR-PROJECT-REF")) {
   document.body.innerHTML =
@@ -356,8 +358,10 @@ supabase?.auth.onAuthStateChange((event, session) => {
 
 const session = localPreview ? null : (await supabase.auth.getSession()).data.session;
 if (localPreview) {
-  $("greeting").textContent = "Local preview.";
-  document.querySelector(".sub").textContent = "Explore the console and scanner without signing in. Live scans require an account.";
+  $("greeting").textContent = window.SALUS_LOCAL ? "Local workspace." : "Local preview.";
+  document.querySelector(".sub").textContent = window.SALUS_LOCAL
+    ? "Scan local applications from the scanner. GitHub and account connections are unavailable in this workspace."
+    : "Explore the console without signing in. Run npm start to scan local apps.";
   $("v-email").textContent = "Not signed in";
   $("v-id").textContent = "Local preview";
   $("v-provider").textContent = "No login required";
@@ -387,9 +391,9 @@ if (localPreview) {
   $("v-email").textContent = user.email || "not set";
   $("v-id").textContent = user.id;
 
-  $("v-provider").innerHTML = '<span class="tag acid">' + provider + "</span>";
+  $("v-provider").innerHTML = '<span class="tag acid">' + esc(provider) + "</span>";
   $("v-identities").innerHTML = identities.length
-    ? identities.map((p) => '<span class="tag grey">' + p + "</span>").join(" ")
+    ? identities.map((p) => '<span class="tag grey">' + esc(p) + "</span>").join(" ")
     : '<span class="tag grey">None</span>';
 
   keepToken(session);
@@ -471,10 +475,10 @@ async function loadRepos(token, isGithubUser) {
     $("repo-count").textContent = repos.length ? "· " + repos.length : "";
     body.innerHTML = repos.length
       ? repos.map((r) =>
-          '<a class="repo" data-name="' + r.full_name.toLowerCase() + '"' +
+          '<a class="repo" data-name="' + esc(r.full_name.toLowerCase()) + '"' +
              ' href="/scanner.html?repo=' + encodeURIComponent(r.full_name) + '">' +
-            '<span class="nm">' + r.name + "</span>" +
-            (r.language ? '<span class="lang">' + r.language + "</span>" : "") +
+            '<span class="nm">' + esc(r.name) + "</span>" +
+            (r.language ? '<span class="lang">' + esc(r.language) + "</span>" : "") +
             '<span class="meta">' +
               '<span class="tag ' + (r.private ? "red" : "grey") + '">' + (r.private ? "Private" : "Public") + "</span>" +
               '<span class="go">Scan &rarr;</span>' +
@@ -483,7 +487,7 @@ async function loadRepos(token, isGithubUser) {
         ).join("")
       : '<div class="empty"><b>No repositories found.</b>The token works, but this account does not own any repositories.</div>';
   } catch (err) {
-    body.innerHTML = '<div class="empty"><b>Could not read your repositories.</b>' + err.message + ".</div>";
+    body.innerHTML = '<div class="empty"><b>Could not read your repositories.</b>' + esc(err.message) + ".</div>";
   }
 }
 
@@ -533,10 +537,10 @@ function renderSources() {
   }
   body.innerHTML = list.map((s, i) =>
     '<div class="src-row">' + (ICONS[s.kind] || ICONS.file) +
-      '<span class="nm">' + s.label + "</span>" +
+      '<span class="nm">' + esc(s.label) + "</span>" +
       '<span class="meta">' +
         '<span class="tag ' + (ROLE[s.kind] === "target" ? "acid" : "grey") + '">' + ROLE[s.kind] + "</span>" +
-        '<span class="tag grey">' + s.detail + "</span>" +
+        '<span class="tag grey">' + esc(s.detail) + "</span>" +
         '<button class="drop-src" type="button" data-i="' + i + '">Remove</button>' +
       "</span>" +
     "</div>"

@@ -92,6 +92,11 @@ export function redact(value: string): string {
   return value.slice(0, 6) + MASK + value.slice(-4);
 }
 
+export function redactSecrets(value: string): string {
+  for (const pattern of SECRET_PATTERNS) value = value.replace(pattern.re, redact);
+  return value.replace(JWT_RE, redact);
+}
+
 export function decodeJwtPayload(token: string): string | null {
   const parts = token.split(".");
   if (parts.length !== 3) return null;
@@ -124,9 +129,11 @@ export function detectSecrets(source: string): SecretHit[] {
   let jwt: RegExpExecArray | null;
   while ((jwt = JWT_RE.exec(source)) !== null) {
     const payload = decodeJwtPayload(jwt[0]);
-    if (payload && payload.indexOf("service_role") !== -1) {
-      push("supabase_service_role", jwt[0], jwt.index);
-    }
+    try {
+      if (payload && JSON.parse(payload).role === "service_role") {
+        push("supabase_service_role", jwt[0], jwt.index);
+      }
+    } catch { /* A malformed payload does not establish a role. */ }
   }
 
   return hits.sort((a, b) => a.index - b.index);
@@ -308,8 +315,8 @@ export function auditHeaders(
   ) {
     issues.push({
       header: "access-control-allow-origin",
-      issue: "Any origin is allowed to send credentialed requests, so another site can read logged in responses.",
-      severity: "high",
+      issue: "Wildcard origin cannot be combined with credentialed CORS access. Browsers block these credentialed responses.",
+      severity: "medium",
     });
   }
 

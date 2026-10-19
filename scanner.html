@@ -436,6 +436,7 @@
 .gate label b{color:var(--txt);font-weight:500}
 .modal-actions{display:flex;gap:.7rem}
 .modal-actions .pill-btn,.modal-actions .acid-btn{flex:1;text-align:center}
+[hidden] { display: none !important; }
 </style>
 </head>
 <body>
@@ -520,7 +521,7 @@
               <div class="txt">
                 <span class="ttl">Exposed keys and secrets <span class="sev breach">Breach</span></span>
                 <p class="why">Service keys, database URLs and API tokens compiled straight into the JavaScript bundle, where anyone who opens devtools can read them.</p>
-                <span class="code">Bundle scan &middot; entropy and provider patterns</span>
+                <span class="code">Bundle scan &middot; known credential patterns</span>
               </div>
             </label>
 
@@ -655,6 +656,7 @@
           <span class="mono eyebrow">Scan report</span>
           <h1 id="res-title">Scan</h1>
           <p class="sub" id="res-sub"></p>
+          <div class="note" id="coverage" hidden></div>
         </div>
         <a class="pill-btn" href="/scanner.html">New scan</a>
       </div>
@@ -756,10 +758,11 @@
 <script src="/config.js"></script>
 <script type="module">
 const localPreview = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
+const localApi = localPreview && window.SALUS_LOCAL === true;
 import { fixableFindings, buildPatch, filesFor } from "/fixes.js";
 import { openPullRequest, pullRequestBody, parseRepo } from "/github.js";
 
-const cfg = window.SALUS_CONFIG;
+const cfg = window.SALUS_CONFIG || { SUPABASE_URL: "YOUR-PROJECT-REF" };
 const $ = (id) => document.getElementById(id);
 
 if (!localPreview && cfg.SUPABASE_URL.includes("YOUR-PROJECT-REF")) {
@@ -792,12 +795,27 @@ if (!localPreview && !session) {
 }
 
 const user = session?.user;
-$("accountName").textContent = localPreview ? "Local preview" :
+$("accountName").textContent = localApi ? "Local workspace" : localPreview ? "Local preview" :
   user.user_metadata.user_name || user.user_metadata.full_name || user.email || "your account";
 $("accountBadge").classList.add("show");
 $("gated").classList.add("ready");
 if (localPreview) {
-  document.querySelector(".note").textContent = "Local preview. You can configure a scan here; running it requires sign-in on the hosted app.";
+  document.querySelector(".note").textContent = localApi
+    ? "Scan an app running on this machine. Salus reads its page and same-origin scripts, saves reports locally, and requires no account. External resources are excluded and reported as incomplete coverage."
+    : "Static preview. Run npm start from the project to scan local apps and save reports.";
+}
+if (localApi) {
+  $("accountBadge").firstChild.textContent = "";
+  document.querySelector(".hero-row .sub").textContent = "Inspect a local app and keep a report of the evidence. No account or API key is required.";
+  document.querySelector('#stage-setup > .note').textContent = "Only scan a development app you own or are authorized to test. Reports stay in this workspace.";
+  document.querySelector(".modal-sub").textContent = "Salus will read the selected app from this machine.";
+  document.querySelector(".terms").textContent = "Requests are limited to the selected local origin. Reports include redacted findings and check coverage. No account is involved.";
+  $("consent-label").innerHTML = "<b>I own this local application or have permission to test it.</b> This authorization is saved with the report.";
+  document.querySelectorAll('.group[data-tier="2"], .group[data-tier="3"]').forEach((group) => { group.hidden = true; });
+  $("url").placeholder = "http://127.0.0.1:3000";
+  $("agent-pr").disabled = true;
+  $("agent-pr").textContent = "Publication is manual";
+  document.querySelector('.group .state').textContent = "Local checks";
 }
 
 /* ---- cursor glow ----
@@ -946,6 +964,26 @@ if (sites.length && !$("url").value) {
 
 /* ---- flaw options ---- */
 const boxes = [...document.querySelectorAll('.opt input[type="checkbox"]')];
+if (localApi) {
+  for (const box of boxes) {
+    if (["backend-defaults", "admin-routes"].includes(box.dataset.flaw)) {
+      box.checked = false;
+      box.disabled = true;
+      box.closest(".opt").querySelector(".why").textContent = "Not included in the local scanner. This check requires a separately authorized scope.";
+      box.closest(".opt").hidden = true;
+    }
+  }
+  const descriptions = {
+    "exposed-keys": "Look for credential patterns in the page and its scripts. Matches are redacted; no credential is tested.",
+    "source-maps": "Inspect source maps linked from scripts and distinguish filenames from included source text.",
+    headers: "Inspect CSP, framing, content-type, HTTPS, and CORS response settings. Cookie flags are not checked.",
+    fingerprint: "Identify possible framework or hosting signatures. This is context, not a vulnerability.",
+  };
+  for (const box of boxes.filter((box) => descriptions[box.dataset.flaw])) {
+    box.closest(".opt").querySelector(".why").textContent = descriptions[box.dataset.flaw];
+  }
+  document.querySelector('[data-flaw="exposed-keys"]').closest(".opt").querySelector(".sev").textContent = "Pattern check";
+}
 
 function selected() {
   return boxes.filter((b) => b.checked && !b.disabled).map((b) => b.dataset.flaw);
@@ -1003,13 +1041,13 @@ function readTarget() {
   if (!/^https?:\/\//i.test(raw)) raw = "https://" + raw;
   try {
     const u = new URL(raw);
-    return u.hostname.includes(".") ? u.href : null;
+    return u.hostname.includes(".") || (localApi && ["localhost", "[::1]"].includes(u.hostname)) ? u.href : null;
   } catch { return null; }
 }
 
 $("run").addEventListener("click", () => {
   clearSay();
-  if (localPreview) return say("Live scans require sign-in on the hosted app. Nothing was sent or saved.", "warn");
+  if (localPreview && !localApi) return say("Run npm start to scan local apps. Nothing was sent or saved.", "warn");
   const target = readTarget();
   if (!target) { $("url").focus(); return say("Enter the URL of the app you want scanned."); }
   if (!selected().length) return say("Pick at least one check to run.");
@@ -1075,7 +1113,7 @@ const sevClass = (s) => SEV_CLASS[s] || "med";
 
 const STATUS_LABEL = {
   queued: "queued", pending: "queued", running: "working",
-  done: "verified", failed: "failed", blocked: "could not run",
+  done: "completed", failed: "failed", blocked: "could not run", partial: "incomplete coverage",
 };
 const statusChip = (s) =>
   '<span class="status-chip ' + esc(s) + '"><span class="dot"></span>' +
@@ -1126,6 +1164,12 @@ function renderHeader() {
     "<span>" + (parts.length ? esc(parts.join(", ")) : "no findings yet") + "</span>" +
     '<span class="checks">' + esc(s.checks.join(" · ")) + "</span>";
   $("ov-count").textContent = state.findings.length ? "· " + state.findings.length : "";
+  if (localApi) {
+    $("coverage").hidden = false;
+    $("coverage").innerHTML = '<b>Check coverage</b><br>' + (state.checkResults || []).map((check) =>
+      esc(check.check) + ": " + esc(check.state) + ". " + esc(check.reason) + " (" + check.inspected + " inspected)"
+    ).join("<br>");
+  }
 }
 
 /* ---- findings ---- */
@@ -1151,15 +1195,15 @@ function renderFindings() {
             '<p class="blast">' + esc(f.blast) + "</p>" +
             '<div class="meta">' +
               (f.generator ? "<span>Built with " + esc(f.generator) + "</span>" : "") +
-              (f.affected != null ? "<span>" + f.affected.toLocaleString() + " users affected</span>" : "") +
+              (f.affected != null ? "<span>" + f.affected.toLocaleString() + (f.affected === 1 ? " item identified</span>" : " items identified</span>") : "") +
               '<button class="evidence-btn" type="button" data-evi="' + esc(f.id) + '" aria-expanded="' + open + '">' +
-                (open ? "hide evidence" : "how this was proven") +
+                (open ? "hide evidence" : "view evidence") +
               "</button>" +
             "</div>" +
           "</div>" +
         "</div>" +
         (open
-          ? '<div class="evidence"><span class="lbl">How this was proven</span>' + esc(evidenceText(f)) + "</div>"
+          ? '<div class="evidence"><span class="lbl">Observed evidence</span>' + esc(evidenceText(f)) + "</div>"
           : "") +
       "</article>"
     );
@@ -1179,6 +1223,9 @@ function evidenceText(f) {
 function emptyReport() {
   const s = state.scan;
   if (!s) return "";
+  if (localApi) return '<div class="empty"><b>' +
+    (s.status === "failed" ? "Scan failed." : s.status === "partial" ? "Coverage is incomplete." : s.status === "done" ? "No matching findings in the inspected scope." : "Scan in progress.") +
+    '</b>' + esc(s.error || "Review the check coverage above. This is not a security certification.") + '</div>';
   if (s.status === "failed")
     return '<div class="empty"><b>The scan failed.</b>' + esc(s.error || "No reason was recorded.") + "</div>";
   if (s.status === "done")
@@ -1212,7 +1259,7 @@ function renderActivity() {
         '<p class="blast">' + esc(f.evidence || f.blast) + "</p>" +
         '<div class="flow-stats">' +
           (f.affected != null
-            ? '<div><div class="k">users affected</div><div class="v">' + f.affected.toLocaleString() + "</div></div>"
+            ? '<div><div class="k">items identified</div><div class="v">' + f.affected.toLocaleString() + "</div></div>"
             : "") +
           (f.generator
             ? '<div><div class="k">built with</div><div class="v">' + esc(f.generator) + "</div></div>"
@@ -1361,6 +1408,7 @@ $("agent-download").addEventListener("click", () => {
 });
 
 $("agent-pr").addEventListener("click", async () => {
+  if (localApi) return say("Download and review the draft patch. Publish changes manually.", "warn");
   if (!agent.built) return;
   const btn = $("agent-pr");
   const repo = state.scan?.repo;
@@ -1424,6 +1472,9 @@ function renderChat() {
 function answer(question, ctx) {
   const q = question.toLowerCase();
   if (!ctx.length) {
+    if (localApi && /check|scope|coverage|scan/.test(q)) {
+      return (state.checkResults || []).map((check) => check.check + ": " + check.state + ". " + check.reason).join("\n");
+    }
     const n = state.findings.length;
     if (!n) return "This scan has not recorded any findings yet, so there is nothing I can tell you about it.";
     const breaches = state.findings.filter((f) => f.severity === "breach").length;
@@ -1451,7 +1502,7 @@ function answer(question, ctx) {
 async function pushMessage(role, body) {
   state.messages.push({ role, body });
   renderChat();
-  if (!state.scan) return;
+  if (!state.scan || localApi) return;
   const { error } = await supabase.from("finding_messages").insert({
     scan_id: state.scan.id,
     user_id: user.id,
@@ -1504,6 +1555,21 @@ function renderAll() {
 
 /* ---- loading a scan ---- */
 async function loadScan(scanId) {
+  if (localApi) {
+    try {
+      const response = await fetch("/api/scans/" + encodeURIComponent(scanId));
+      const report = await response.json();
+      if (!response.ok) throw new Error(report.error || "Could not load this report");
+      state.scan = report.scan;
+      state.findings = report.findings;
+      state.checkResults = report.check_results;
+      $("stage-setup").hidden = true;
+      $("stage-results").hidden = false;
+      renderAll();
+      if (["queued", "running"].includes(report.scan.status)) setTimeout(() => loadScan(scanId), 700);
+    } catch (error) { say(error.message); }
+    return;
+  }
   if (localPreview) return say("Saved scans require sign-in on the hosted app.", "warn");
   const { data: scan, error } = await supabase.from("scans").select("*").eq("id", scanId).single();
   if (error) {
@@ -1586,7 +1652,7 @@ function watch(scanId) {
 
 /* ---- starting a scan ---- */
 confirmBtn.addEventListener("click", async () => {
-  if (localPreview) return say("Live scans require sign-in on the hosted app. Nothing was sent or saved.", "warn");
+  if (localPreview && !localApi) return say("Run npm start to scan local apps. Nothing was sent or saved.", "warn");
   if (!consent.checked) {
     gate.classList.remove("nudge");
     void gate.offsetWidth;
@@ -1606,6 +1672,21 @@ confirmBtn.addEventListener("click", async () => {
 
   confirmBtn.disabled = true;
   confirmBtn.textContent = "Recording authorization…";
+
+  if (localApi) {
+    try {
+      const response = await fetch("/api/scans", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ target_url: target, checks: selected(), authorized: consent.checked }) });
+      const report = await response.json();
+      if (!response.ok) throw new Error(report.error || "Could not start this scan");
+      closeModal();
+      clearSay();
+      history.replaceState(null, "", "?scan=" + report.scan.id);
+      await loadScan(report.scan.id);
+    } catch (error) { closeModal(); say(error.message); }
+    finally { confirmBtn.disabled = false; confirmBtn.textContent = "Agree and run scan"; }
+    return;
+  }
 
   const { data: scan, error } = await supabase.from("scans").insert({
     user_id: user.id,
@@ -1646,6 +1727,21 @@ confirmBtn.addEventListener("click", async () => {
 
 /* ---- entry ---- */
 if (params.get("scan")) await loadScan(params.get("scan"));
+else if (localApi) {
+  try {
+    const response = await fetch("/api/scans");
+    if (!response.ok) throw new Error("Could not load saved reports");
+    const scans = await response.json();
+    if (scans.length) {
+      const saved = document.createElement("div");
+      saved.className = "note";
+      saved.innerHTML = "<b>Saved reports</b><br>" + scans.map((scan) =>
+        '<a href="?scan=' + encodeURIComponent(scan.id) + '">' + esc(scan.target_host) + " · " + esc(scan.status) + " · " + esc(scan.created_at) + "</a>"
+      ).join("<br>");
+      $("stage-setup").appendChild(saved);
+    }
+  } catch (error) { say(error.message); }
+}
 </script>
 </body>
 </html>

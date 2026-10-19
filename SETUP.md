@@ -1,5 +1,9 @@
 # Wiring up the Salus backend
 
+For the supported local developer workflow, run `npm start` and open `http://127.0.0.1:8787`. No Supabase project or configuration is required. Reports are stored in `.salus/reports/`. See the README for scope and limits.
+
+The remaining instructions describe the separate hosted prototype. Its deployed authorization, network isolation, and scan behavior have not been verified in this maintenance pass.
+
 Salus is static HTML plus Supabase. There is no server of its own, so the scan
 engine runs as a Supabase Edge Function. Two steps, both one-time.
 
