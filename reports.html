@@ -1,0 +1,14 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reports | Salus</title><meta name="description" content="Inspect your local web app, review observed security findings, and draft source changes with Codex.">
+<link rel="preconnect" href="https://api.fontshare.com"><link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&f[]=switzer@400,500,600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/product.css"></head><body data-page="reports"><div class="shell">
+<header class="product-nav"><a class="brand" href="/" aria-label="Salus home">SALUS</a><nav aria-label="Main navigation"><a href="/">Home</a><a href="/scanner.html">Scanner</a><a href="/app.html">Console</a><a href="/reports.html" aria-current="page">Reports</a><a href="/docs.html">Guide</a></nav></header>
+<main>
+<div class="eyebrow">Recorded evidence</div><h1>Your scan history.</h1><p>Open the findings from a saved run, or compare check coverage before and after a change.</p>
+<a class="button primary" href="/scanner.html">New scan</a><div class="columns">
+<section class="panel"><h2>Saved reports</h2><div id="reports">Loading reports...</div></section>
+<section class="panel"><h2>Compare runs</h2><form id="compare-form"><label for="before">Before</label><select id="before" required></select><label for="after">After</label><select id="after" required></select><p>Run the same target and checks after applying and testing a patch.</p><button type="submit">Compare evidence</button></form><div id="comparison"></div></section></div>
+<div id="message" role="status" aria-live="polite"></div></main>
+<footer><span>Salus / local developer security</span><div><a href="/docs.html#privacy">Privacy</a><a href="/docs.html#scope">Scope and responsible use</a><a href="https://github.com/Aadi-Tiwari/Salus">Source</a></div></footer>
+</div><script type="module" src="/product.js"></script></body></html>

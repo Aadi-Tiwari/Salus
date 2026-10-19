@@ -4,13 +4,15 @@ import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { CHECKS, localTarget, reportUrl, scan } from "./local/scan.mjs";
+import { createAgentStore, runtimeStatus, SOURCE_LIMIT } from "./local/agent.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
-const assets = new Set(["scanner.html", "app.html", "index.html", "signin.html", "auth.css", "fixes.js", "github.js", "navigation.js"]);
+const assets = new Set(["scanner.html", "app.html", "index.html", "signin.html", "reports.html", "docs.html", "product.css", "product.js", "auth.css", "navigation.js"]);
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export async function createLocalServer({ directory = join(root, ".salus", "reports") } = {}) {
   await mkdir(directory, { recursive: true });
+  const agents = await createAgentStore(directory);
   const reports = new Map();
   const save = async (report) => {
     const path = join(directory, `${report.scan.id}.json`);
@@ -43,6 +45,29 @@ export async function createLocalServer({ directory = join(root, ".salus", "repo
         (request.headers["sec-fetch-site"] === "cross-site" && url.pathname.startsWith("/api/"))) return send(403, { error: "Local requests only" });
     try {
       if (request.method === "GET" && url.pathname === "/api/health") return send(200, { service: "salus-local", checks: CHECKS });
+      if (request.method === "GET" && url.pathname === "/api/agent") return send(200, await runtimeStatus());
+      if (request.method === "GET" && url.pathname === "/api/sources") return send(200, agents.listSources());
+      if (request.method === "GET" && url.pathname === "/api/runs") return send(200, agents.listRuns());
+      if (request.method === "GET" && url.pathname.startsWith("/api/runs/")) {
+        const id = url.pathname.slice("/api/runs/".length);
+        const run = idPattern.test(id) && agents.getRun(id);
+        return run ? send(200, run) : send(404, { error: "Agent run not found" });
+      }
+      if (request.method === "POST" && ["/api/sources", "/api/runs"].includes(url.pathname)) {
+        if (request.headers["content-type"]?.split(";")[0] !== "application/json") return send(415, { error: "Send JSON" });
+        const chunks = [];
+        let bytes = 0;
+        for await (const chunk of request) {
+          bytes += chunk.length;
+          if (bytes > SOURCE_LIMIT * 2) return send(413, { error: "Request is too large" });
+          chunks.push(chunk);
+        }
+        try {
+          const input = JSON.parse(Buffer.concat(chunks).toString("utf8"));
+          if (url.pathname === "/api/sources") return send(201, await agents.attach(input.files));
+          return send(202, await agents.start(input, reports.get(input.scan_id)));
+        } catch (error) { return send(error.status || 400, { error: error.message }); }
+      }
       if (request.method === "GET" && url.pathname === "/api/scans") {
         return send(200, [...reports.values()].map(({ scan }) => scan).reverse());
       }
@@ -90,10 +115,11 @@ export async function createLocalServer({ directory = join(root, ".salus", "repo
         response.writeHead(200, { "content-type": "text/javascript", "cache-control": "no-store" });
         return response.end("window.SALUS_CONFIG = {}; window.SALUS_LOCAL = true;");
       }
-      const name = url.pathname === "/" ? "scanner.html" : url.pathname.slice(1);
+      const name = url.pathname === "/" ? "index.html" : url.pathname.slice(1);
       if (!assets.has(name)) return send(404, { error: "Not found" });
       response.writeHead(200, { "content-type": name.endsWith(".js") ? "text/javascript" : name.endsWith(".css") ? "text/css" : "text/html; charset=utf-8",
-        "cache-control": "no-store", "x-content-type-options": "nosniff" });
+        "cache-control": "no-store", "x-content-type-options": "nosniff", "x-frame-options": "DENY",
+        "content-security-policy": "frame-ancestors 'none'" });
       response.end(await readFile(join(root, name)));
     } catch {
       if (!response.headersSent) send(500, { error: "Local storage or request processing failed" });

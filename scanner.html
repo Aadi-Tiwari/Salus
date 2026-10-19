@@ -460,7 +460,7 @@
     </a>
     <div class="nav-right">
       <div class="account-badge" id="accountBadge">Signed in as <b id="accountName"></b></div>
-      <a class="pill-btn" href="/app.html">Console</a>
+      <a class="pill-btn" href="/reports.html">Reports</a><a class="pill-btn" href="/docs.html">Guide</a><a class="pill-btn" href="/app.html">Console</a>
     </div>
   </nav>
 
@@ -692,33 +692,11 @@
           </div>
         </aside>
 
-        <!-- Takes the chat panel's place while Agent activity is open. Editing
-             the code and asking about the report are different jobs, so they do
-             not share a surface. -->
         <aside class="panel chat-panel" id="agent-panel" hidden>
-          <div class="panel-head"><span>Edit with agentic mode</span></div>
-          <div class="agentic">
-            <p class="agentic-lede" id="agentic-lede"></p>
-            <div class="edit-list" id="edit-list"></div>
-
-            <button class="acid-btn agentic-run" id="agent-run" type="button">Edit with agentic mode</button>
-
-            <div class="agent-progress" id="agent-progress" hidden>
-              <div class="ap-head">
-                <span class="lbl">Progress</span>
-                <span class="ap-count" id="ap-count"></span>
-              </div>
-              <ol class="ap-steps" id="ap-steps"></ol>
-            </div>
-
-            <div class="agent-out" id="agent-out" hidden>
-              <button class="acid-btn" id="agent-download" type="button">Download the patch</button>
-              <button class="pill-btn" id="agent-pr" type="button">Open a pull request</button>
-              <p class="chat-foot" id="agent-out-note"></p>
-            </div>
-
-            <p class="chat-foot">Salus writes files, never a push. Every change arrives as a patch you can read or a pull request you merge yourself.</p>
-          </div>
+          <div class="panel-head"><span>Remediation agent</span></div>
+          <div class="agentic"><p>Attach relevant source files in the console, select this scan, and run your installed Codex agent.</p>
+          <a class="acid-btn" id="open-agent" href="/app.html">Open agent console</a>
+          <p class="chat-foot">Each run records real execution events. Patches are reviewable drafts until you apply them, test the app, and run a fresh scan.</p></div>
         </aside>
       </div>
     </section>
@@ -759,8 +737,6 @@
 <script type="module">
 const localPreview = ["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
 const localApi = localPreview && window.SALUS_LOCAL === true;
-import { fixableFindings, buildPatch, filesFor } from "/fixes.js";
-import { openPullRequest, pullRequestBody, parseRepo } from "/github.js";
 
 const cfg = window.SALUS_CONFIG || { SUPABASE_URL: "YOUR-PROJECT-REF" };
 const $ = (id) => document.getElementById(id);
@@ -813,8 +789,6 @@ if (localApi) {
   $("consent-label").innerHTML = "<b>I own this local application or have permission to test it.</b> This authorization is saved with the report.";
   document.querySelectorAll('.group[data-tier="2"], .group[data-tier="3"]').forEach((group) => { group.hidden = true; });
   $("url").placeholder = "http://127.0.0.1:3000";
-  $("agent-pr").disabled = true;
-  $("agent-pr").textContent = "Publication is manual";
   document.querySelector('.group .state').textContent = "Local checks";
 }
 
@@ -1236,214 +1210,21 @@ function emptyReport() {
     "is most likely not deployed to this Supabase project yet.</div>";
 }
 
-/* ---- agent activity ---- */
-function renderActivity() {
+/* ---- recorded agent activity ---- */
+async function renderActivity() {
   const host = $("activity-list");
-  if (!state.findings.length) { host.innerHTML = emptyReport(); return; }
-
-  host.innerHTML = state.findings.map((f, i) => {
-    const steps = f.steps || [];
-    const doneCount = steps.filter((s) => s.state === "done").length;
-    const on = state.selected.has(f.id);
-    const line = f.status === "done" ? "var(--acid)"
-      : f.status === "running" ? "var(--amber)" : "var(--line-2)";
-    return (
-      '<div class="flow' + (on ? " on" : "") + (f.status === "pending" ? " is-pending" : "") + '">' +
-        '<div class="flow-top">' +
-          '<span class="sev ' + sevClass(f.severity) + '">' + esc(f.severity) + "</span>" +
-          statusChip(f.status) +
-          (f.duration_ms != null ? '<span class="when">' + fmtDuration(f.duration_ms) + "</span>" : "") +
-        "</div>" +
-        "<h3>" + esc(f.title) + "</h3>" +
-        '<div class="loc">' + esc(f.locator) + "</div>" +
-        '<p class="blast">' + esc(f.evidence || f.blast) + "</p>" +
-        '<div class="flow-stats">' +
-          (f.affected != null
-            ? '<div><div class="k">items identified</div><div class="v">' + f.affected.toLocaleString() + "</div></div>"
-            : "") +
-          (f.generator
-            ? '<div><div class="k">built with</div><div class="v">' + esc(f.generator) + "</div></div>"
-            : "") +
-          '<div><div class="k">steps done</div><div class="v">' + doneCount + " / " + steps.length + "</div></div>" +
-        "</div>" +
-        (steps.length
-          ? '<div class="steps">' + steps.map((s) =>
-              '<div class="step ' + esc(s.state) + '"><span class="bullet"></span>' +
-              '<span class="label">' + esc(s.label) + "</span></div>").join("") + "</div>"
-          : "") +
-      "</div>" +
-      (i < state.findings.length - 1
-        ? '<div class="connector"><svg width="16" height="22" viewBox="0 0 16 22" fill="none" aria-hidden="true">' +
-          '<line x1="8" y1="0" x2="8" y2="15" stroke="' + line + '" stroke-width="1.5"/>' +
-          '<path d="M3 12l5 6 5-6" stroke="' + line + '" stroke-width="1.5" fill="none" ' +
-          'stroke-linecap="round" stroke-linejoin="round"/></svg></div>'
-        : "")
-    );
-  }).join("");
-}
-
-/* ---- chat ---- */
-const contextFindings = () => state.findings.filter((f) => state.selected.has(f.id));
-
-/* ---- agentic mode ----
-   The generator is deterministic: the same finding always produces the same
-   files, and a finding Salus has not proven produces nothing at all. That is
-   why this can run in the page and still be honest about what it did. */
-const agent = {
-  fixes: [],          // every fix the current findings can produce
-  chosen: new Set(),  // fix keys the visitor ticked
-  built: null,        // { fixes, patch, files } once a run finishes
-  running: false,
-};
-
-function renderEditList() {
-  agent.fixes = fixableFindings(state.findings);
-  const host = $("edit-list");
-  const lede = $("agentic-lede");
-
-  if (!agent.fixes.length) {
-    const proven = state.findings.filter((f) => f.evidence).length;
-    lede.textContent = proven
-      ? "None of the proven findings here can be closed by a file change. Exposed keys and access-control flaws need a decision Salus will not make for you."
-      : "Nothing is proven yet, so there is nothing to edit. Salus only writes a patch against a finding it has demonstrated.";
-    host.innerHTML = "";
-    $("agent-run").disabled = true;
-    return;
-  }
-
-  // First run pre-selects everything, so the common case is one click.
-  if (!agent.chosen.size) agent.fixes.forEach((f) => agent.chosen.add(f.key));
-
-  lede.textContent = "These are the parts of your app Salus can edit. Pick what you want changed.";
-  host.innerHTML = agent.fixes.map((fix) => {
-    const on = agent.chosen.has(fix.key);
-    return (
-      '<label class="edit-item' + (on ? " on" : "") + '">' +
-        '<input type="checkbox" data-fix="' + esc(fix.key) + '"' + (on ? " checked" : "") + "/>" +
-        '<span class="ei-body">' +
-          '<b class="ei-title">' + esc(fix.title) + "</b>" +
-          '<span class="ei-why">' + esc(fix.summary) + "</span>" +
-          '<span class="ei-files">' + fix.files.map((f) => esc(f.path)).join("  ·  ") + "</span>" +
-          (fix.closes ? "" : '<span class="ei-why ei-open">Needs a step you have to finish by hand.</span>') +
-        "</span>" +
-      "</label>"
-    );
-  }).join("");
-
-  host.querySelectorAll("input[data-fix]").forEach((box) =>
-    box.addEventListener("change", () => {
-      if (box.checked) agent.chosen.add(box.dataset.fix);
-      else agent.chosen.delete(box.dataset.fix);
-      box.closest(".edit-item").classList.toggle("on", box.checked);
-      $("agent-run").disabled = agent.chosen.size === 0;
-    })
-  );
-  $("agent-run").disabled = agent.chosen.size === 0;
-}
-
-function paintSteps(steps) {
-  $("ap-steps").innerHTML = steps.map((s) =>
-    '<li class="' + s.state + '"><i></i><span>' + esc(s.label) + "</span></li>"
-  ).join("");
-  const done = steps.filter((s) => s.state === "done").length;
-  $("ap-count").textContent = done + " / " + steps.length;
-}
-
-$("agent-run").addEventListener("click", async () => {
-  if (agent.running) return;
-  const chosen = agent.fixes.filter((f) => agent.chosen.has(f.key));
-  if (!chosen.length) return;
-
-  agent.running = true;
-  const btn = $("agent-run");
-  btn.disabled = true;
-  btn.textContent = "Editing…";
-  $("agent-out").hidden = true;
-  $("agent-progress").hidden = false;
-
-  const steps = chosen.flatMap((fix) =>
-    fix.files.map((file) => ({ label: fix.title + " → " + file.path, state: "pending" }))
-  );
-  steps.push({ label: "Assemble the patch", state: "pending" });
-  paintSteps(steps);
-
-  // Paced so the work is legible rather than a flash. The files themselves are
-  // already generated; this is the writing being shown, not fake progress.
-  for (let i = 0; i < steps.length; i++) {
-    steps[i].state = "active";
-    paintSteps(steps);
-    await new Promise((r) => setTimeout(r, 260));
-    steps[i].state = "done";
-    paintSteps(steps);
-  }
-
-  const patch = buildPatch(chosen, state.scan);
-  agent.built = { fixes: chosen, patch, files: filesFor(chosen) };
-
-  const open = chosen.filter((f) => !f.closes).length;
-  $("agent-out-note").textContent = open
-    ? open + " of these need a step you have to finish by hand. The patch and the pull request both spell out which."
-    : "Read the patch before applying it. Salus has not touched your app.";
-  $("agent-out").hidden = false;
-
-  btn.textContent = "Edit with agentic mode";
-  btn.disabled = false;
-  agent.running = false;
-});
-
-$("agent-download").addEventListener("click", () => {
-  if (!agent.built) return;
-  const blob = new Blob([agent.built.patch], { type: "text/x-patch" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = "salus-fixes-" + (state.scan?.target_host || "app").replace(/[^a-z0-9.-]/gi, "-") + ".patch";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  // Revoked on the next frame: revoking synchronously can cancel the download
-  // in some browsers before it has read the blob.
-  setTimeout(() => URL.revokeObjectURL(url), 0);
-  say("Patch downloaded. Apply it with git apply, read it first.", "ok");
-});
-
-$("agent-pr").addEventListener("click", async () => {
-  if (localApi) return say("Download and review the draft patch. Publish changes manually.", "warn");
-  if (!agent.built) return;
-  const btn = $("agent-pr");
-  const repo = state.scan?.repo;
-  if (!repo || !parseRepo(repo)) {
-    return say("This scan has no GitHub repository attached, so there is nothing to open a pull request against. Attach one in the console and run the scan again.", "warn");
-  }
-  const token = sessionStorage.getItem("salus.provider_token");
-  if (!token) {
-    return say("No GitHub token is held. Sign in with GitHub again from the console, then come back.", "warn");
-  }
-
-  const target = parseRepo(repo);
-  if (!window.confirm("Open a pull request against " + target.owner + "/" + target.repo + "?\n\nSalus creates a new branch and opens a pull request. It never pushes to your default branch, and nothing lands until you merge.")) return;
-
-  btn.disabled = true;
-  const steps = [];
-  const note = $("agent-out-note");
+  if (!localApi || !state.scan) { host.textContent = "Start the local server to view recorded agent runs."; return; }
   try {
-    const pr = await openPullRequest({
-      token,
-      repo,
-      files: agent.built.files,
-      title: "Salus: close " + agent.built.fixes.length + " finding" + (agent.built.fixes.length === 1 ? "" : "s"),
-      body: pullRequestBody(agent.built.fixes, state.scan),
-      onStep: (m) => { steps.push(m); note.textContent = m; },
-    });
-    note.innerHTML = 'Pull request #' + pr.number + ' opened on branch <code>' + esc(pr.branch) + '</code>. Nothing is merged.';
-    say("Opened pull request #" + pr.number + ". Review and merge it yourself: " + pr.url, "ok");
-  } catch (err) {
-    note.textContent = "The pull request did not open.";
-    say("Could not open the pull request. " + err.message, "err");
-  } finally {
-    btn.disabled = false;
-  }
-});
+    const response = await fetch("/api/runs");
+    if (!response.ok) throw new Error("Could not load agent runs.");
+    const runs = (await response.json()).filter((run) => run.scan_id === state.scan.id);
+    host.innerHTML = runs.map((run) => '<div class="flow"><h3>' + esc(run.status.replaceAll("_", " ")) + '</h3><p>' + esc(run.error || run.summary || "Agent is running.") + '</p><a class="pill-btn" href="/app.html?run=' + encodeURIComponent(run.id) + '">View recorded run</a></div>').join("") || '<div class="empty">No agent has run against this scan. Open the console to attach source and start a run.</div>';
+  } catch (error) { host.textContent = error.message; }
+}
+const contextFindings = () => state.findings.filter((f) => state.selected.has(f.id));
+function renderEditList() {
+  $("open-agent").href = "/app.html" + (state.scan ? "?scan=" + encodeURIComponent(state.scan.id) : "");
+}
 
 function renderChat() {
   const ctx = contextFindings();

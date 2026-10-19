@@ -16,9 +16,21 @@ Open <http://127.0.0.1:8787>. Start the development app you want to inspect, ent
 
 The scanner accepts only `localhost`, `127.0.0.1`, and `[::1]` targets. Scripts and redirects must stay on the selected origin. It sends unauthenticated GET requests, inspects the page and up to six linked scripts, caps response bodies at 2 MB, and limits each scan to 24 requests. It does not crawl additional pages, run JavaScript, inspect dynamically loaded modules, test credential validity, or call discovered third-party backends. Linked external resources, failed downloads, inline source maps, and resource limits produce incomplete coverage rather than a clean result.
 
-Available checks are credential patterns, linked source maps, response headers, and framework or hosting fingerprints. Source maps distinguish filenames from included source text. Each selected check retains a `clean`, `found`, `partial`, or `blocked` record. Clean means no matching issue within the inspected scope. Report data stays local; the existing interface may load its fonts from public CDNs.
+Available checks are credential patterns, linked source maps, response headers, and framework or hosting fingerprints. Source maps distinguish filenames from included source text. Each selected check retains a `clean`, `found`, `partial`, or `blocked` record. Clean means no matching issue within the inspected scope. Scanning stores reports locally; optional agent runs send selected source and redacted findings through your Codex account. The interface loads fonts from public CDNs.
 
-The report's explanations and suggested patches are deterministic drafts. Download and review patches before applying them. Local mode cannot publish pull requests. Public-host scanning, authentication tests, repository ingestion, automatic fixes, and multi-user hosting are outside this release.
+The report explanations read from recorded evidence. Public-host scanning, authentication tests, whole-repository ingestion, automatic application of fixes, and multi-user hosting are outside this release.
+
+## Draft a remediation with Codex
+
+Install Codex CLI separately and run `codex login`. Git must be available on PATH. Salus reuses the installed CLI and its authentication; it does not require a separate API key. Account limits and provider terms still apply. If executable discovery fails, set `SALUS_CODEX_BIN` to the native Codex executable path before starting Salus.
+
+Open the console, attach the source files relevant to a finding, and confirm each path relative to your project's root. Attach up to 20 text files totaling 256 KiB. Snapshots retain full source text and SHA-256 hashes under the ignored `.salus/reports/sources/` directory. Remove secrets and private data first; pattern checks cannot identify every credential.
+
+Choose a finished scan, findings with evidence, and a snapshot. Explicitly consent to sharing them for model inference, then run the agent. Salus invokes Codex directly with user configuration and project instructions excluded, tools disabled, a read-only sandbox, and a structured-output schema. Runs have a three-minute process limit and bounded output. It records actual runtime events and exit status, with no simulated progress or canned fallback. Only attached paths can appear in a replacement draft.
+
+Salus creates a patch from the returned replacements and runs `git apply --check` against a disposable copy of the attached source. This verifies applicability, not application behavior. Review the patch and manual steps, check it against your current files, and apply it yourself. Run your application's tests and restart its server, then scan again and compare the reports. Salus does not execute generated commands, modify your project, or publish pull requests.
+
+Saved runs and patches live under `.salus/reports/runs/`. Interrupted runs reopen as failed. Stop Salus before deleting `.salus` to clear local reports, source snapshots, and run records.
 
 ## Static interface preview
 
@@ -28,7 +40,7 @@ Use Python to serve the repository. Copy `config.example.js` to `config.js` firs
 python -m http.server 8080 --bind 127.0.0.1
 ```
 
-Open <http://127.0.0.1:8080/app.html> or <http://127.0.0.1:8080/scanner.html>. A plain file server provides only the interface preview. Use `npm start` for local scanning and saved reports.
+Open <http://127.0.0.1:8080/> for the landing page. A plain file server provides only an interface preview. Use `npm start` for scanning, saved reports, and agents.
 
 ## Configure a hosted instance
 
@@ -41,13 +53,15 @@ A publishable key is intended for client use; access still depends on database g
 | Path | Responsibility |
 | --- | --- |
 | `server.mjs`, `local/scan.mjs` | Local API, scan boundaries, coverage, and report persistence |
-| `index.html`, `app.html`, `scanner.html`, `signin.html` | Landing, dashboard, scan, and login interfaces |
+| `index.html`, `app.html`, `scanner.html`, `reports.html`, `docs.html` | Landing, agent console, scanner, report comparison, and guide |
+| `product.js`, `product.css`, `auth.css` | Local interface behavior and shared styling |
+| `local/agent.mjs` | Source snapshots, actual Codex execution, and validated draft patches |
 | `navigation.js` | Same-origin login return-path validation |
 | `schema.sql` | Scan records and row-level policy definitions |
 | `supabase/functions/scan/` | Scan orchestration and detection engine |
-| `fixes.js`, `github.js` | Client-side patch and repository helpers |
+| `signin.html`, `fixes.js`, `github.js` | Legacy hosted prototype files, unused by the local agent workflow |
 
-The server engine implements the available Tier 1 checks. Higher tiers remain unavailable. Repository helpers and proposed patches still require review; they are not proof that a remediation is correct.
+The local server serves only its public page and asset allowlist. It binds to loopback, rejects foreign API origins and hosts, and prevents framing of its pages. It is a trusted single-user tool, not a security boundary between local users.
 
 ## Checks
 
@@ -57,7 +71,7 @@ Use Node.js 22.17 or newer:
 npm test
 ```
 
-The dependency-free tests run actual scans against local fixtures, verify persisted reports across server restarts, and exercise incomplete coverage, URL boundaries, access restrictions, classification, and redaction. They do not exercise a deployed Edge Function, live row-level policies, OAuth, or external scan targets.
+The dependency-free tests run actual scans against local fixtures and cover persistence, incomplete coverage, URL boundaries, access restrictions, redaction, source validation, patch applicability, interrupted runs, and page assets. They do not invoke a live model or exercise deployed Edge Functions, row-level policies, OAuth, or external targets. Live agent behavior requires a separate configured-runtime check.
 
 ## License
 
