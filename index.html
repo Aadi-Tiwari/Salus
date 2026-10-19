@@ -1,19 +1,19 @@
 <!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Inspect before you ship | Salus</title><meta name="description" content="Inspect your local web app, review observed security findings, and draft source changes with Codex.">
+<title>Inspect before you ship | Salus</title><meta name="description" content="Find security issues in your web app, propose fixes, and show evidence that the fixes work.">
 <link rel="preconnect" href="https://api.fontshare.com"><link href="https://api.fontshare.com/v2/css?f[]=general-sans@400,500,600&f[]=switzer@400,500,600&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/product.css"></head><body data-page=""><div class="shell">
 <header class="product-nav"><a class="brand" href="/" aria-label="Salus home">SALUS</a><nav aria-label="Main navigation"><a href="/" aria-current="page">Home</a><a href="/scanner.html">Scanner</a><a href="/app.html">Console</a><a href="/reports.html">Reports</a><a href="/docs.html">Guide</a></nav></header>
 <main>
 <section class="hero"><div class="eyebrow">Security checks for your local app</div>
 <h1>Find the evidence.<br>Understand the fix.</h1>
-<p>Inspect the page your app actually serves. Keep the findings, attach the relevant source, and ask Codex to draft a change you can review.</p>
+<p>Find security issues in your web app, propose fixes, and show evidence that the fixes work. Scan locally, review a Codex draft, then run your configured tests and fresh security checks.</p>
 <div class="actions"><a class="button primary" href="/scanner.html">Scan a local app</a><a class="button" href="/docs.html">Read the guide</a></div>
 <p class="muted"><code>npm start</code> &nbsp; No account or API key needed for scanning.</p></section>
-<section aria-labelledby="workflow"><h2 id="workflow">A short path from observation to review.</h2><div class="steps">
+<section aria-labelledby="workflow"><h2 id="workflow">From a finding to a checked repair.</h2><div class="steps">
 <article><div class="eyebrow">01 / Observe</div><h3>Scan a running app</h3><p>Check credential patterns, source maps, response headers, and framework signatures on an authorized local origin.</p></article>
 <article><div class="eyebrow">02 / Investigate</div><h3>Read what was found</h3><p>Each report keeps redacted evidence and check coverage. Unreadable resources stay visible as incomplete coverage.</p></article>
-<article><div class="eyebrow">03 / Repair</div><h3>Review a source-aware draft</h3><p>Attach selected files and run your installed Codex CLI. Download the patch, review and apply it, then scan again.</p></article>
+<article><div class="eyebrow">03 / Repair</div><h3>Review a source-aware draft</h3><p>Attach selected files and run your installed Codex CLI. Review and apply the patch, then verify it against your source, project tests, and fresh observations.</p></article>
 </div></section>
 <div class="columns"><section class="panel"><h2>Know what ran.</h2><p>Reports survive a server restart. Agent runs record runtime events, exit status, source hashes, and patch validation. No simulated activity or automatic success claims.</p><a class="button" href="/reports.html">Open saved reports</a></section>
 <section class="panel"><h2>Keep the scope clear.</h2><p>These are passive checks of a page and its same-origin scripts. Salus does not authenticate, crawl an entire application, or certify it as secure.</p><p>The scanner runs locally. Optional Codex inference sends your selected source and redacted findings through your Codex account.</p><a class="button" href="/docs.html#agents">How agent drafts work</a></section></div>

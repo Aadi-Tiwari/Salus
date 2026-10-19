@@ -3,14 +3,15 @@ import { mkdir, readFile, readdir, rename, writeFile } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { CHECKS, localTarget, reportUrl, scan } from "./local/scan.mjs";
+import { CHECKS, localTarget, reportUrl, scan, targetIdentity } from "./local/scan.mjs";
 import { createAgentStore, runtimeStatus, SOURCE_LIMIT } from "./local/agent.mjs";
+import { createVerificationStore, loadVerificationConfig } from "./local/verify.mjs";
 
 const root = dirname(fileURLToPath(import.meta.url));
 const assets = new Set(["scanner.html", "app.html", "index.html", "signin.html", "reports.html", "docs.html", "product.css", "product.js", "auth.css", "navigation.js"]);
 const idPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-export async function createLocalServer({ directory = join(root, ".salus", "reports") } = {}) {
+export async function createLocalServer({ directory = join(root, ".salus", "reports"), verificationConfig = process.env.SALUS_VERIFY_CONFIG } = {}) {
   await mkdir(directory, { recursive: true });
   const agents = await createAgentStore(directory);
   const reports = new Map();
@@ -30,6 +31,15 @@ export async function createLocalServer({ directory = join(root, ".salus", "repo
     reports.set(report.scan.id, report);
   }
   let busy = false;
+  const verifications = await createVerificationStore({ directory, agents, reports,
+    config: await loadVerificationConfig(verificationConfig),
+    reserve: () => { if (busy) return false; busy = true; return true; }, release: () => { busy = false; },
+    runScan: async (report, target) => {
+      reports.set(report.scan.id, report);
+      await save(report);
+      await scan(report, () => save(report), target);
+    },
+  });
   const server = createServer(async (request, response) => {
     const send = (status, value) => {
       response.writeHead(status, { "content-type": "application/json", "cache-control": "no-store", "x-content-type-options": "nosniff" });
@@ -48,12 +58,19 @@ export async function createLocalServer({ directory = join(root, ".salus", "repo
       if (request.method === "GET" && url.pathname === "/api/agent") return send(200, await runtimeStatus());
       if (request.method === "GET" && url.pathname === "/api/sources") return send(200, agents.listSources());
       if (request.method === "GET" && url.pathname === "/api/runs") return send(200, agents.listRuns());
+      if (request.method === "GET" && url.pathname === "/api/verification-config") return send(200, verifications.configuration());
+      if (request.method === "GET" && url.pathname === "/api/verifications") return send(200, verifications.list());
+      if (request.method === "GET" && url.pathname.startsWith("/api/verifications/")) {
+        const id = url.pathname.slice("/api/verifications/".length);
+        const attempt = idPattern.test(id) && verifications.get(id);
+        return attempt ? send(200, attempt) : send(404, { error: "Verification not found" });
+      }
       if (request.method === "GET" && url.pathname.startsWith("/api/runs/")) {
         const id = url.pathname.slice("/api/runs/".length);
         const run = idPattern.test(id) && agents.getRun(id);
         return run ? send(200, run) : send(404, { error: "Agent run not found" });
       }
-      if (request.method === "POST" && ["/api/sources", "/api/runs"].includes(url.pathname)) {
+      if (request.method === "POST" && ["/api/sources", "/api/runs", "/api/verifications"].includes(url.pathname)) {
         if (request.headers["content-type"]?.split(";")[0] !== "application/json") return send(415, { error: "Send JSON" });
         const chunks = [];
         let bytes = 0;
@@ -65,7 +82,10 @@ export async function createLocalServer({ directory = join(root, ".salus", "repo
         try {
           const input = JSON.parse(Buffer.concat(chunks).toString("utf8"));
           if (url.pathname === "/api/sources") return send(201, await agents.attach(input.files));
-          return send(202, await agents.start(input, reports.get(input.scan_id)));
+          if (url.pathname === "/api/verifications") return send(202, await verifications.start(input));
+          const retry = input.retry_verification_id && verifications.get(input.retry_verification_id);
+          if (input.retry_verification_id && !retry) return send(400, { error: "Previous verification not found." });
+          return send(202, await agents.start(input, reports.get(input.scan_id), retry, retry && reports.get(retry.before_scan_id)));
         } catch (error) { return send(error.status || 400, { error: error.message }); }
       }
       if (request.method === "GET" && url.pathname === "/api/scans") {
@@ -94,7 +114,7 @@ export async function createLocalServer({ directory = join(root, ".salus", "repo
           return send(400, { error: "Select supported local checks" });
         }
         if (busy) return send(409, { error: "A scan is already running. Wait for its report." });
-        const report = { scan: { id: randomUUID(), target_url: reportUrl(target.href), target_host: target.host,
+        const report = { scan: { id: randomUUID(), target_url: reportUrl(target.href), target_identity: targetIdentity(target.href), target_host: target.host,
           checks: [...new Set(input.checks)], status: "queued", authorized: true, created_at: new Date().toISOString() },
           findings: [], check_results: [] };
         busy = true;

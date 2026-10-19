@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import {
   auditHeaders, detectSecrets, extractScriptUrls, fingerprintGenerator, redactSecrets, secretLabel, sourceMapUrl,
 } from "../supabase/functions/scan/engine.ts";
@@ -26,9 +26,11 @@ export function reportUrl(value) {
   catch { return url.origin + "/[unreadable-path]" + url.search; }
 }
 
+export const targetIdentity = (value) => createHash("sha256").update(localTarget(value).href).digest("hex");
+
 function reader(origin) {
   let requests = 0;
-  return async function read(value) {
+  return async function read(value, allowRemoved = false) {
     let url = localTarget(value);
     for (let redirects = 0; redirects <= 3; redirects++) {
       if (url.origin !== origin) throw new Error("Resource is outside the selected origin");
@@ -44,6 +46,10 @@ function reader(origin) {
         url = localTarget(new URL(location, url).href);
         continue;
       }
+      if (allowRemoved && [404, 410].includes(response.status)) {
+        await response.body?.cancel();
+        return { url: url.href, status: response.status, body: "", headers: Object.fromEntries(response.headers) };
+      }
       if (!response.ok) {
         await response.body?.cancel();
         throw new Error(`Resource returned HTTP ${response.status}`);
@@ -55,7 +61,7 @@ function reader(origin) {
         if (size > MAX_BYTES) throw new Error("Resource exceeds the 2 MB scan limit");
         chunks.push(chunk);
       }
-      return { url: url.href, body: Buffer.concat(chunks).toString("utf8"), headers: Object.fromEntries(response.headers) };
+      return { url: url.href, status: response.status, body: Buffer.concat(chunks).toString("utf8"), headers: Object.fromEntries(response.headers) };
     }
     throw new Error("Redirect limit reached");
   };
@@ -65,7 +71,7 @@ export async function scan(report, save, target = report.scan.target_url) {
   const read = reader(new URL(target).origin);
   const findings = report.findings;
   const add = (check, title, evidence, locator, severity = "medium", affected = 1) => {
-    findings.push({ id: randomUUID(), check_key: check, title, evidence, locator: reportUrl(locator),
+    findings.push({ id: randomUUID(), check_key: check, title, evidence, locator: reportUrl(locator), resource_identity: targetIdentity(locator),
       severity, affected, status: "done", position: findings.length,
       blast: "Review the evidence in the context of your application before making changes.", steps: [] });
   };
@@ -82,6 +88,9 @@ export async function scan(report, save, target = report.scan.target_url) {
     await save();
     return;
   }
+
+  report.observation = { target_identity: targetIdentity(page.url), http_status: page.status,
+    content_type: page.headers["content-type"]?.split(";")[0] || "unspecified", bytes: Buffer.byteLength(page.body) };
 
   const scripts = [];
   const missed = [];
@@ -152,4 +161,34 @@ export async function scan(report, save, target = report.scan.target_url) {
   report.scan.status = report.check_results.some((check) => check.state === "partial") ? "partial" : "done";
   report.scan.finished_at = new Date().toISOString();
   await save();
+}
+
+export async function recheckResources(findings, target) {
+  const read = reader(new URL(target).origin);
+  const probes = [];
+  for (const finding of findings.filter((item) => ["source-maps", "exposed-keys"].includes(item.check_key))) {
+    const probe = { finding_id: finding.id, check: finding.check_key, locator: finding.locator, state: "inconclusive" };
+    try {
+      const url = localTarget(finding.locator);
+      if (finding.resource_identity !== targetIdentity(url.href)) throw new Error("The saved URL does not identify the original resource. Recheck it manually.");
+      if (url.search || reportUrl(url.href) !== url.href) throw new Error("The saved resource URL was redacted. Its original location cannot be rechecked.");
+      const resource = await read(url.href, true);
+      probe.http_status = resource.status;
+      if (targetIdentity(resource.url) !== targetIdentity(url.href)) throw new Error("The original resource now redirects. Review its destination manually.");
+      if ([404, 410].includes(resource.status)) {
+        probe.state = "passed";
+        probe.detail = "The original resource returned HTTP " + resource.status + ".";
+      } else if (finding.check_key === "exposed-keys") {
+        probe.state = detectSecrets(resource.body).length ? "failed" : "passed";
+        probe.detail = probe.state === "failed" ? "Credential patterns remain at the original resource." : "No supported credential pattern was found at the original resource.";
+      } else {
+        const map = JSON.parse(resource.body);
+        if (map.version !== 3 || !Array.isArray(map.sources)) throw new Error("The original map URL returned an unrecognized response. Review it manually.");
+        probe.state = "failed";
+        probe.detail = "The original source map is still accessible, even if the app no longer links it.";
+      }
+    } catch (error) { probe.detail = error instanceof SyntaxError ? "The original map URL returned an unrecognized response. Review it manually." : error.message; }
+    probes.push(probe);
+  }
+  return probes;
 }

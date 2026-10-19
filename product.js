@@ -11,6 +11,59 @@ async function api(path, input) {
 const reportLink = (scan) => `<a href="/scanner.html?scan=${encodeURIComponent(scan.id)}">${esc(scan.target_host)}</a>`;
 let scans = [], sources = [], selectedFiles = [], activeRun, polling;
 let findingRequest = 0, runRequest = 0;
+let verificationConfig, verificationPolling, retryVerification;
+
+async function refreshScans(selected) {
+  scans = await api("/api/scans");
+  $("scan").innerHTML = '<option value="">Choose a finished scan</option>' + scans.filter((scan) => ["done", "partial"].includes(scan.status)).map((scan) =>
+    `<option value="${scan.id}">${esc(scan.target_host)} · ${esc(new Date(scan.created_at).toLocaleString())} · ${esc(scan.status)}</option>`).join("");
+  if (scans.some((scan) => scan.id === selected)) $("scan").value = selected;
+}
+
+async function showVerifications(run, sequence) {
+  const attempts = (await api("/api/verifications")).filter((attempt) => attempt.run_id === run.id);
+  if (sequence !== runRequest) return;
+  const pending = attempts.some((attempt) => ["queued", "running"].includes(attempt.status));
+  $("verify-repair").disabled = !verificationConfig?.available || run.status !== "draft_ready" || pending;
+  $("verifications").innerHTML = attempts.map((attempt) => `<article class="record"><h3>${esc(attempt.status === "passed" ? "Recorded checks passed" : attempt.status)}</h3>
+    <p>${esc(attempt.error || attempt.scope)}</p><p>${esc(new Date(attempt.created_at).toLocaleString())}</p>
+    <ul><li>Source before tests: ${esc(attempt.source_before?.state || "not checked")}</li><li>Configured command: ${esc(attempt.tests?.state || "not run")}${attempt.tests ? ` (exit ${esc(attempt.tests.exit_code ?? "unavailable")})` : ""}</li>
+    <li>Source after checks: ${esc(attempt.source_after?.state || "not checked")}</li>
+    ${(attempt.checks || []).map((check) => `<li>${esc(check.check)}: ${esc(check.before)} → ${esc(check.after)} (${esc(check.state)})</li>`).join("")}
+    ${(attempt.resources || []).map((probe) => `<li>${esc(probe.locator)}: ${esc(probe.detail)} (${esc(probe.state)})</li>`).join("")}</ul>
+    <div class="actions"><a class="button" href="/scanner.html?scan=${encodeURIComponent(attempt.before_scan_id)}">Original report</a>${attempt.after_scan_id ? `<a class="button" href="/scanner.html?scan=${encodeURIComponent(attempt.after_scan_id)}">Fresh report</a>` : ""}
+    <button type="button" data-evidence="${attempt.id}">Download evidence</button>
+    ${["failed", "inconclusive"].includes(attempt.status) && attempt.after_scan_id ? `<button type="button" data-retry="${attempt.id}">Prepare another draft</button>` : ""}</div>
+    <details><summary>Recorded evidence</summary><pre>${esc(JSON.stringify(attempt, null, 2))}</pre></details></article>`).join("") || '<p class="empty">No verification attempts yet. A downloadable patch has only passed an applicability check.</p>';
+  $("verifications").querySelectorAll("[data-evidence]").forEach((button) => button.addEventListener("click", () => {
+    const attempt = attempts.find((item) => item.id === button.dataset.evidence);
+    download("salus-verification-" + attempt.id + ".json", JSON.stringify(attempt, null, 2), "application/json");
+  }));
+  $("verifications").querySelectorAll("[data-retry]").forEach((button) => button.addEventListener("click", async () => {
+    try {
+      const attempt = attempts.find((item) => item.id === button.dataset.retry);
+      const report = await api("/api/scans/" + attempt.after_scan_id);
+      if (!["done", "partial"].includes(report.scan.status)) throw new Error("The fresh scan did not finish. Resolve its coverage errors and scan again.");
+      retryVerification = attempt;
+      await refreshScans(attempt.after_scan_id);
+      await showFindings();
+      $("source").value = ""; showSource();
+      $("model-consent").checked = false;
+      $("retry-context").hidden = false;
+      $("retry-context").textContent = "Retry after verification " + attempt.id + ". Attach current source and relevant tests. The draft receives failure status, not raw test logs. If the fresh scan is clean, the original findings provide repair context.";
+      $("attach-form").scrollIntoView({ behavior: "instant", block: "start" });
+      say("Attach current source, review the new findings, and consent before running another draft.");
+    } catch (error) { say(error.message); }
+  }));
+  if (pending) verificationPolling = setTimeout(() => showVerifications(run, sequence).catch((error) => say(error.message)), 1000);
+}
+
+function download(name, content, type) {
+  const url = URL.createObjectURL(new Blob([content], { type }));
+  const link = document.createElement("a");
+  link.href = url; link.download = name; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 
 async function refreshSources() {
   sources = await api("/api/sources");
@@ -27,7 +80,8 @@ async function showFindings() {
   const sequence = ++findingRequest;
   $("findings").textContent = "Loading findings...";
   if (!$("scan").value) { $("findings").textContent = "Choose a finished scan."; return; }
-  const report = await api("/api/scans/" + $("scan").value);
+  let report = await api("/api/scans/" + $("scan").value);
+  if (!report.findings.length && retryVerification?.after_scan_id === report.scan.id) report = await api("/api/scans/" + retryVerification.before_scan_id);
   if (sequence !== findingRequest) return;
   $("findings").innerHTML = report.findings.filter((finding) => finding.evidence).map((finding) =>
     `<label class="check"><input type="checkbox" name="finding" value="${esc(finding.id)}" checked><span>${esc(finding.title)}</span></label>`).join("") || "This scan has no findings with evidence to send to the agent.";
@@ -42,6 +96,9 @@ async function refreshRuns() {
 async function showRun(id) {
   const sequence = ++runRequest;
   clearTimeout(polling);
+  clearTimeout(verificationPolling);
+  $("verify-repair").disabled = true;
+  $("verify-consent").checked = false;
   const run = await api("/api/runs/" + id);
   if (sequence !== runRequest) return;
   activeRun = run;
@@ -54,6 +111,8 @@ async function showRun(id) {
   $("patch").textContent = activeRun.patch || "No patch available.";
   $("download").hidden = !activeRun.patch;
   $("run-id").textContent = "Run " + activeRun.id;
+  await showVerifications(run, sequence);
+  if (sequence !== runRequest) return;
   if (["queued", "running"].includes(activeRun.status)) polling = setTimeout(() => showRun(id).catch((error) => say(error.message)), 1500);
   else await refreshRuns();
 }
@@ -62,17 +121,21 @@ async function consolePage() {
   const status = await api("/api/agent");
   $("runtime").textContent = status.message;
   $("run-agent").disabled = !status.available;
-  scans = await api("/api/scans");
-  $("scan").innerHTML = '<option value="">Choose a finished scan</option>' + scans.filter((scan) => ["done", "partial"].includes(scan.status)).map((scan) =>
-    `<option value="${scan.id}">${esc(scan.target_host)} · ${esc(new Date(scan.created_at).toLocaleString())} · ${esc(scan.status)}</option>`).join("");
+  verificationConfig = await api("/api/verification-config");
+  $("verification-config").textContent = verificationConfig.available
+    ? `Project: ${verificationConfig.project_dir}\nTarget: ${verificationConfig.target_url}\nTest command: ${JSON.stringify(verificationConfig.test_command)}`
+    : verificationConfig.message;
   const requested = new URLSearchParams(location.search).get("scan");
-  if (scans.some((scan) => scan.id === requested)) $("scan").value = requested;
+  await refreshScans(requested);
   await refreshSources();
   await showFindings();
   await refreshRuns();
   const run = new URLSearchParams(location.search).get("run");
   if (run) await showRun(run);
-  $("scan").addEventListener("change", () => showFindings().catch((error) => say(error.message)));
+  $("scan").addEventListener("change", () => {
+    if (retryVerification?.after_scan_id !== $("scan").value) { retryVerification = null; $("retry-context").hidden = true; }
+    showFindings().catch((error) => say(error.message));
+  });
   $("source").addEventListener("change", showSource);
   $("files").addEventListener("change", () => {
     selectedFiles = [...$("files").files];
@@ -97,7 +160,7 @@ async function consolePage() {
     $("run-agent").disabled = true;
     try {
       const run = await api("/api/runs", { scan_id: $("scan").value, source_id: $("source").value, consent: $("model-consent").checked,
-        finding_ids: [...document.querySelectorAll('input[name="finding"]:checked')].map((input) => input.value) });
+        finding_ids: [...document.querySelectorAll('input[name="finding"]:checked')].map((input) => input.value), retry_verification_id: retryVerification?.id });
       history.replaceState(null, "", "?run=" + run.id);
       await showRun(run.id);
       $("run-detail").scrollIntoView({ behavior: "instant", block: "start" });
@@ -106,12 +169,19 @@ async function consolePage() {
   });
   $("download").addEventListener("click", () => {
     if (!activeRun?.patch) return;
-    const url = URL.createObjectURL(new Blob([activeRun.patch], { type: "text/x-patch" }));
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = "salus-" + activeRun.id + ".patch";
-    link.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    download("salus-" + activeRun.id + ".patch", activeRun.patch, "text/x-patch");
+  });
+  $("verify-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const run = activeRun, sequence = runRequest;
+    $("verify-repair").disabled = true;
+    try {
+      await api("/api/verifications", { run_id: run.id, consent: $("verify-consent").checked });
+      if (sequence !== runRequest) return;
+      clearTimeout(verificationPolling);
+      await showVerifications(run, sequence);
+      say("Verification started. The evidence will show what actually ran.");
+    } catch (error) { say(error.message); if (sequence === runRequest) $("verify-repair").disabled = !verificationConfig.available; }
   });
 }
 

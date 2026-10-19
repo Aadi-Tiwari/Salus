@@ -28,6 +28,10 @@ test("patches apply to the original text snapshot and cannot introduce unattache
     assert.match(patch, /\+const name = 'after';/);
     assert.equal(await readFile(join(cwd, "before/src/server.js"), "utf8"), files[0].content);
     await assert.rejects(buildPatch(files, { summary: "Invalid", manual_steps: [], changes: [{ path: "elsewhere.js", content: "x", reason: "" }] }, cwd), /unattached/);
+    await assert.rejects(buildPatch([...files, { path: "other.js", content: "" }], { summary: "Ambiguous", manual_steps: [], changes: [
+      { path: "src/server.js", content: files[0].content, reason: "unchanged" },
+      { path: "src/server.js", content: "const name = 'changed';", reason: "changed" },
+    ] }, cwd), /duplicate/);
     await assert.rejects(buildPatch(files, { summary: "Invalid", manual_steps: [], changes: [{ path: "src/server.js", content: "const token = 'sb_secret_" + "x".repeat(32) + "';", reason: "" }] }, cwd), /credential/);
   } finally { await rm(cwd, { recursive: true, force: true }); }
 });

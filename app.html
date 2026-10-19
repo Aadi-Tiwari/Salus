@@ -5,8 +5,8 @@
 <link rel="stylesheet" href="/product.css"></head><body data-page="console"><div class="shell">
 <header class="product-nav"><a class="brand" href="/" aria-label="Salus home">SALUS</a><nav aria-label="Main navigation"><a href="/">Home</a><a href="/scanner.html">Scanner</a><a href="/app.html" aria-current="page">Console</a><a href="/reports.html">Reports</a><a href="/docs.html">Guide</a></nav></header>
 <main>
-<div class="eyebrow">Local workspace</div><h1>From evidence to a draft.</h1>
-<p>Attach the source that owns a finding. Codex can propose a focused patch; you review and apply it.</p>
+<div class="eyebrow">Local workspace</div><h1>Find. Repair. Check.</h1>
+<p>Attach the source that owns a finding. Review and apply a focused patch, then collect evidence from your tests and a fresh scan.</p>
 <div class="notice" id="runtime" role="status">Checking the installed Codex runtime...</div>
 <div class="columns"><section class="panel"><h2>Attach source</h2>
 <p>Choose text files from your project and confirm their paths relative to its root. The snapshot stays on this machine until you start an agent run.</p>
@@ -16,12 +16,18 @@
 <section class="panel"><h2>Run a remediation agent</h2><form id="agent-form">
 <label for="scan">Saved scan</label><select id="scan" required><option value="">Loading reports...</option></select>
 <div id="findings"></div><label for="source">Source snapshot</label><select id="source" required><option value="">Loading sources...</option></select>
+<p id="retry-context" class="notice" hidden></p>
 <details><summary>Attached paths and hashes</summary><pre id="manifest">Choose a source snapshot.</pre></details>
 <label class="check"><input id="model-consent" type="checkbox" required><span>I may share these files and findings with my configured Codex provider. I understand that this uses model inference and may consume my account allowance.</span></label>
 <button class="primary" id="run-agent" type="submit" disabled>Run Codex agent</button></form><p><small>Drafts are unverified application changes. Salus does not execute generated commands or modify your project.</small></p></section></div>
 <section class="panel" id="run-detail" hidden><div class="eyebrow" id="run-id"></div><h2 id="run-title"></h2><p id="run-summary"></p><p class="notice" id="run-validation"></p>
 <h3>Runtime events</h3><pre id="run-events"></pre><h3>Manual steps</h3><pre id="manual-steps"></pre>
-<details><summary>Review patch</summary><pre id="patch"></pre></details><div class="actions"><button class="primary" id="download" hidden>Download patch</button><a class="button" href="/docs.html#verify">Review and verify</a><a class="button" href="/scanner.html">Run a fresh scan</a></div></section>
+<details><summary>Review patch</summary><pre id="patch"></pre></details><div class="actions"><button class="primary" id="download" hidden>Download patch</button><a class="button" href="/docs.html#verify">Verification setup</a><a class="button" href="/scanner.html">Scanner</a></div>
+<h3>Check the applied repair</h3><p id="verification-config" class="notice"></p>
+<form id="verify-form"><label class="check"><input id="verify-consent" type="checkbox" required><span>I reviewed and applied this patch, restarted my local app, and authorize the configured test command and repeat scan. Project tests are trusted code and may have side effects.</span></label>
+<button class="primary" id="verify-repair" type="submit" disabled>Run tests and recheck</button></form>
+<p><small>Source correspondence, test results, and security observations are recorded separately. Salus cannot prove which source the running server loaded or that the entire app is secure.</small></p>
+<div id="verifications"></div></section>
 <section class="panel"><h2>Saved agent runs</h2><div id="runs">Loading runs...</div></section>
 <div id="message" role="status" aria-live="polite"></div></main>
 <footer><span>Salus / local developer security</span><div><a href="/docs.html#privacy">Privacy</a><a href="/docs.html#scope">Scope and responsible use</a><a href="https://github.com/Aadi-Tiwari/Salus">Source</a></div></footer>

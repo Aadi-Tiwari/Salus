@@ -20,4 +20,5 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;font: .8rem/1.6 var(--font-mono)
 table{border-collapse:collapse;width:100%;font-size:.9rem}td,th{text-align:left;padding:.8rem;border-bottom:1px solid var(--line);overflow-wrap:anywhere}th{color:var(--acid)}.table-scroll{overflow-x:auto}
 footer{display:flex;flex-wrap:wrap;gap:1.4rem;justify-content:space-between;padding:1.8rem 0;border-top:1px solid var(--line);color:#a4b1b7;font-size:.85rem}footer div{display:flex;gap:1.3rem}
 .prose{max-width:76ch}.prose section{margin:2.5rem 0;scroll-margin-top:1rem}.prose h2{margin-bottom:1rem}.source-row{margin-bottom:.7rem}.source-row input{padding:.4rem;font-size:.85rem}.empty{padding:1rem 0;color:#a4b1b7}
+#verification-config{white-space:pre-wrap;overflow-wrap:anywhere}#verifications ul{padding-left:1.3rem;color:#b3bfc4}#verifications li{margin:.5rem 0;overflow-wrap:anywhere}
 [hidden]{display:none!important}@media(max-width:720px){.columns,.steps{grid-template-columns:1fr}.product-nav{align-items:flex-start;flex-direction:column}.product-nav nav{gap:1rem}main{padding-top:2rem}.hero{padding-top:1rem}.panel{padding:1.1rem}h1{max-width:100%}}
