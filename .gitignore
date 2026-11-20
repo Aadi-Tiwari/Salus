@@ -2,3 +2,4 @@ supabase/.temp/
 config.js
 node_modules/
 .salus/
+.vercel/
